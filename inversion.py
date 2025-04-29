@@ -4,7 +4,6 @@ import os, json
 from combinaciones import generar_combinaciones_contratos
 
 # Stubs básicos para cálculos de inversión
-# (los cálculos de depósitos y ganancias se mantienen en caso de futuras necesidades)
 def calcular_total_depositos(df):
     try:
         return df['Deposito'].sum() if 'Deposito' in df.columns else 0.0
@@ -17,12 +16,8 @@ def calcular_ganancias_totales(df):
     except:
         return 0.0
 
-# Nuevo cálculo de % Inversión: usa la suma directa de la columna 'Profit'
+# Cálculo de % Inversión basado en la columna 'Profit'
 def calcular_porcentaje_inversion(monto: float, df: pd.DataFrame) -> float:
-    """
-    Devuelve el % de inversión sobre la suma total de la columna 'Profit'.
-    Fórmula: (monto ÷ suma_profit) × 100
-    """
     try:
         total_profit = df['Profit'].sum() if 'Profit' in df.columns else 0.0
         return (monto / total_profit * 100) if total_profit else 0.0
@@ -36,18 +31,16 @@ def init_inversion_state():
     """
     Inicializa en session_state los valores de monto_invertir y valor_contrato desde disco.
     """
+    st.session_state.setdefault('monto_invertir', 0.0)
+    st.session_state.setdefault('valor_contrato', 0.0)
     if os.path.exists(INV_CONFIG):
         try:
             with open(INV_CONFIG, 'r') as f:
                 cfg = json.load(f)
-            st.session_state.monto_invertir = cfg.get('monto_invertir', 0.0)
-            st.session_state.valor_contrato = cfg.get('valor_contrato', 0.0)
-        except:
-            st.session_state.monto_invertir = 0.0
-            st.session_state.valor_contrato = 0.0
-    else:
-        st.session_state.monto_invertir = 0.0
-        st.session_state.valor_contrato = 0.0
+            st.session_state.monto_invertir = cfg.get('monto_invertir', st.session_state.monto_invertir)
+            st.session_state.valor_contrato = cfg.get('valor_contrato', st.session_state.valor_contrato)
+        except (json.JSONDecodeError, FileNotFoundError):
+            pass
 
 def mostrar_sidebar_inversion(df: pd.DataFrame):
     """
@@ -56,30 +49,46 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
     st.sidebar.markdown("### Inversión")
     init_inversion_state()
 
-    # Añadimos una nueva pestaña "Niveles"
-    tab1, tab2, tab3, tab4 = st.sidebar.tabs(["Tabla", "Editar Monto", "Editar Contrato", "Niveles"])
+    # Recuperar último nivel para detectar subida de nivel
+    st.session_state.setdefault('nivel_previo', 0)
 
-    # 1) Tabla de Resumen inicial
-    # Ajustamos 'Monto a Invertir' según el nivel actual
-    # Calculamos nivel de inversión según la suma total de Profit
+    # Pestañas de configuración
+    tab1, tab2, tab3, tab4 = st.sidebar.tabs([
+        "Tabla", "Editar Monto", "Editar Contrato", "Niveles"
+    ])
+
+    # Cálculo de nivel: profit < 1000 → 1, > nivel 10 → 10
     total_profit = df['Profit'].sum() if 'Profit' in df.columns else 0.0
-    nivel_actual = None
-    if total_profit >= 1000:
+    if total_profit < 1000:
+        nivel_actual = 1
+    else:
+        nivel_actual = None
         for n in range(1, 11):
             lower = (2*n - 1) * 1000
             upper = lower + 1999
             if lower <= total_profit <= upper:
                 nivel_actual = n
                 break
-    nivel_label = ">10" if (nivel_actual is None and total_profit >= (2*10 - 1)*1000) else str(nivel_actual or 0)
-    # Valor de inversión base por nivel: nivel * 30
+        if nivel_actual is None:
+            nivel_actual = 10
+    nivel_label = str(nivel_actual)
+
+    # Mostrar mensaje al subir de nivel
+    if nivel_actual > st.session_state.nivel_previo:
+        st.sidebar.success(f"¡Congratulations level {nivel_actual}!")
+    # Actualizar nivel previo
+    st.session_state.nivel_previo = nivel_actual
+
+    # Cálculo de base de inversión
     try:
         inv_level = float(nivel_label) * 30
-    except:
+    except ValueError:
         inv_level = 0.0
-    # Actualizamos estado y tabla
+
     st.session_state.monto_invertir = inv_level
-    n_inicial = (inv_level / st.session_state.valor_contrato) if st.session_state.valor_contrato else 0.0
+    n_inicial = inv_level / st.session_state.valor_contrato if st.session_state.valor_contrato else 0.0
+
+    # Tabla resumen
     tabla = pd.DataFrame({
         '% Inversión':      ['0%'],
         'Monto a Invertir': [f"{inv_level:.2f}"],
@@ -88,27 +97,12 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
         'Nivel':            [nivel_label]
     })
 
-        # Calcular nivel de inversión según la suma total de Profit
-    total_profit = df['Profit'].sum() if 'Profit' in df.columns else 0.0
-    nivel_actual = None
-    if total_profit >= 1000:
-        for n in range(1, 11):
-            lower = (2*n - 1) * 1000
-            upper = lower + 1999
-            if lower <= total_profit <= upper:
-                nivel_actual = n
-                break
-    # Si supera el rango del nivel 10
-    nivel_label = ">10" if (nivel_actual is None and total_profit >= (2*10 - 1)*1000) else str(nivel_actual or 0)
-    tabla.loc[0, 'Nivel'] = nivel_label
-
-    # 2) Editar Monto
+    # Editar monto
     with tab2:
         monto = st.number_input(
             "Monto a invertir:",
             value=st.session_state.monto_invertir,
-            step=0.01,
-            format="%.2f",
+            step=0.01, format="%.2f",
             key='monto_input'
         )
         st.session_state.monto_invertir = monto
@@ -123,13 +117,12 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
         n_contr = monto / st.session_state.valor_contrato if st.session_state.valor_contrato else 0.0
         tabla.loc[0, 'N. Contrato']      = f"{n_contr:.2f}"
 
-    # 3) Editar Contrato
+    # Editar contrato
     with tab3:
         val_con = st.number_input(
             "Valor del contrato:",
             value=st.session_state.valor_contrato,
-            step=0.01,
-            format="%.2f",
+            step=0.01, format="%.2f",
             key='contrato_input'
         )
         st.session_state.valor_contrato = val_con
@@ -142,26 +135,31 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
         n_contr = st.session_state.monto_invertir / val_con if val_con else 0.0
         tabla.loc[0, 'N. Contrato'] = f"{n_contr:.2f}"
 
-    # 4) Mostrar Tabla de Resumen
-    # 4) Mostrar Tabla de Resumen
+    # Mostrar tabla de resumen con color de texto según nivel
     with tab1:
-        # Función para aplicar color amarillo a todos los valores
-        def aplicar_color_amarillo(val):
-            return 'color: goldenrod; text-align: center;'
-
-        styled_tabla = tabla.style \
-            .applymap(aplicar_color_amarillo) \
-            .set_properties(**{'text-align': 'center'})  # Asegura centrado
-
+        # Paleta de texto: inicia en goldenrod → verde (nivel5), luego verde → azul claro (nivel10)
+        colors = [
+            '#DAA520',  # goldenrod
+            '#BDB76B',  # darkkhaki
+            '#ADFF2F',  # greenyellow
+            '#7CFC00',  # lawngreen
+            '#008000',  # green
+            '#76EEC6',  # mediumaquamarine
+            '#48D1CC',  # mediumturquoise
+            '#20B2AA',  # lightseagreen
+            '#00CED1',  # darkturquoise
+            '#ADD8E6'   # lightblue
+        ]
+        idx = max(0, min(nivel_actual - 1, 9))
+        text_color = colors[idx]
+        def color_text(val):
+            return f'color: {text_color}; text-align: center;'
+        styled_tabla = tabla.style.applymap(color_text)
         st.dataframe(styled_tabla, hide_index=True, use_container_width=True)
 
-
-    # 5) Mostrar Tabla de Niveles (solo algunas filas visibles, resto con scroll)
+    # Tabla de niveles
     with tab4:
-        niveles = []
-        inversion = []
-        capital = []
-        porcentaje = []
+        niveles, inversion, capital, porcentaje = [], [], [], []
         for n in range(1, 11):
             inv = n * 30
             cap1 = (2*n - 1) * 1000
@@ -182,10 +180,10 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
             tabla_niveles,
             hide_index=True,
             use_container_width=True,
-            height=150  # ALTURA DEL COMPONENTE (ajusta para filas visibles)
+            height=150
         )
-    
-    # 6) Combinaciones de Contratos
+
+    # Combinaciones de Contratos
     st.sidebar.markdown("### Combinaciones de Contratos")
     try:
         num_ct = int(float(tabla.loc[0, 'N. Contrato']))
@@ -194,12 +192,22 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
     cols = [f'Contrato {i+1}' for i in range(4)]
     if num_ct >= 2:
         comps = generar_combinaciones_contratos(num_ct, k=4)
-        if 'comps' not in st.session_state or st.sidebar.button("🟢 Generar Nuevas Combinaciones"):
+        if 'comps' not in st.session_state or st.sidebar.button(
+            "🟢 Generar Nuevas Combinaciones"
+        ):
             st.session_state.comps = comps
-        tabla_combinaciones = pd.DataFrame(st.session_state.comps, columns=cols)
+        tabla_combinaciones = pd.DataFrame(
+            st.session_state.comps,
+            columns=cols
+        )
     else:
         tabla_combinaciones = pd.DataFrame([[0]*4], columns=cols)
     tabla_combinaciones = tabla_combinaciones.replace(0, '')
-    st.sidebar.dataframe(tabla_combinaciones, hide_index=True, height=135)
+    st.sidebar.dataframe(
+        tabla_combinaciones,
+        hide_index=True,
+        height=135
+    )
 
     return tabla
+
