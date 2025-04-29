@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 
 def calcular_porcentaje_profit_op(df: pd.DataFrame) -> pd.DataFrame:
     """
