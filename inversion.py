@@ -210,4 +210,3 @@ def mostrar_sidebar_inversion(df: pd.DataFrame):
     )
 
     return tabla
-
