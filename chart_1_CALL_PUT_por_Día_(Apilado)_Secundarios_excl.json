@@ -1,0 +1,7 @@
+{
+  "series": {
+    "CALL": true,
+    "PUT": true
+  },
+  "excl_fechas": []
+}

@@ -1,0 +1,101 @@
+import streamlit as st
+from datetime import datetime
+import pandas as pd
+
+
+def _agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.DataFrame:
+    """
+    Agrega una operación basada en selected_asset e input_valor.
+    Para DEP/RET solo llena Activo, Día, Fecha, Fecha Cierre, Deposito/Retiro y Profit.
+    """
+    try:
+        ahora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        asset = st.session_state.get('selected_asset', '')
+        # Campos por defecto
+        cp = tipo_op
+        d = porcentaje
+        dia = 0
+        cnt = 1
+        sb = 0
+        ss = 0
+        # Inicializar como None para dejar celda vacía cuando no aplique
+        deposito = None
+        retiro = None
+        profit = None
+
+        if asset == 'DEP':
+            val = float(st.session_state.get('input_valor', '0') or 0)
+            deposito = val
+            profit = val
+            cp = None; d = None; cnt = None; sb = None; ss = None
+        elif asset == 'RET':
+            val = float(st.session_state.get('input_valor', '0') or 0)
+            retiro = -val
+            profit = -val
+            cp = None; d = None; cnt = None; sb = None; ss = None
+
+        # Construir nueva fila
+        nueva = pd.DataFrame({
+            'Activo': [asset],
+            'C&P': [cp],
+            'D': [d],
+            'Día': [dia],
+            'Fecha / Hora': [ahora],
+            'Fecha / Hora de Cierre': [ahora],
+            '#Cont': [cnt],
+            'STRK Buy': [sb],
+            'STRK Sell': [ss],
+            'Deposito': [deposito],
+            'Retiro': [retiro],
+            'Profit': [profit]
+        })
+        # Eliminar filas completamente vacías
+        df0 = df.dropna(how='all')
+        df_final = pd.concat([df0, nueva], ignore_index=True)
+        st.session_state.datos = df_final
+        return df_final
+    except Exception as e:
+        st.error(f"Error al agregar operación: {e}")
+        return df
+
+# Callbacks para operaciones CALL
+def callback_call_100():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, 100, 'CALL')
+
+def callback_call_50():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, 50, 'CALL')
+
+def callback_call_0():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, 0, 'CALL')
+
+def callback_call_menos_50():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, -50, 'CALL')
+
+def callback_call_menos_100():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, -100, 'CALL')
+
+# Callbacks para operaciones PUT
+def callback_put_100():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, 100, 'PUT')
+
+def callback_put_50():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, 50, 'PUT')
+
+def callback_put_0():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, 0, 'PUT')
+
+def callback_put_menos_50():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, -50, 'PUT')
+
+def callback_put_menos_100():
+    st.session_state.datos = _agregar_operacion(
+        st.session_state.datos, -100, 'PUT')

@@ -1,0 +1,12 @@
+{
+  "indices": [],
+  "series": {
+    "cero": true,
+    "positivo": true,
+    "negativo": true
+  },
+  "dr": {
+    "deposito": true,
+    "retiro": true
+  }
+}

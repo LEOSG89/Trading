@@ -1,0 +1,21 @@
+import streamlit as st
+import pandas as pd
+
+# Pipeline de procesamiento de datos cacheado
+def procesar_tabla(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Procesa el DataFrame con cálculos pesados:
+    - limpieza de columnas
+    - cálculo de tiempo de operación
+    - cálculo de drawdown y métricas
+    """
+    # IMPORTA AQUÍ tus funciones reales de procesamiento, por ejemplo:
+    # from tabla_editable_gestion_funciones import limpiar_columnas
+    # from modulo_fechas_new import agregar_tiempo_operacion
+    
+    # df2 = limpiar_columnas(df)
+    # df2 = agregar_tiempo_operacion(df2)
+    # return df2
+
+    # Temporalmente, devuelve df sin modificaciones
+    return df 
