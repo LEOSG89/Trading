@@ -104,21 +104,22 @@ def mostrar_dd_max(df: pd.DataFrame, chart_key: str) -> None:
             st.markdown(f"<h6 style='text-align: center; color:green;'>{top_dup[0][3]:.2f}%</h6>", unsafe_allow_html=True)
         with col4:
                 if tramos_dup:
-                 top_dup = sorted(tramos_dup, key=lambda x: -x[3])[:2]
+        # Tomamos los dos tramos con mayor subida
+                  top_dup = sorted(tramos_dup, key=lambda x: -x[3])[:2]
 
-        # Columna 3: primer tramo
+        # Columna 3: primer tramo D.Up
         with col3:
             if len(top_dup) >= 1:
-                dur0, _, dur_str0, val0 = top_dup[0]
+                _, _, dur_str0, val0 = top_dup[0]
                 st.markdown(f"<h6 style='text-align: center;'>{dur_str0}</h6>", unsafe_allow_html=True)
                 st.markdown(f"<h6 style='text-align: center; color:green;'>{val0:.2f}%</h6>", unsafe_allow_html=True)
             else:
                 st.markdown("<h6 style='text-align: center;'>N/A</h6>", unsafe_allow_html=True)
 
-        # Columna 4: segundo tramo
+        # Columna 4: segundo tramo D.Up
         with col4:
             if len(top_dup) >= 2:
-                dur1, _, dur_str1, val1 = top_dup[1]
+                _, _, dur_str1, val1 = top_dup[1]
                 st.markdown(f"<h6 style='text-align: center;'>{dur_str1}</h6>", unsafe_allow_html=True)
                 st.markdown(f"<h6 style='text-align: center; color:green;'>{val1:.2f}%</h6>", unsafe_allow_html=True)
             else:
