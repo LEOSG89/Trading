@@ -119,22 +119,48 @@ def calcular_dd_up(df: pd.DataFrame) -> pd.DataFrame:
 def calcular_profit_t(df: pd.DataFrame) -> pd.DataFrame:
     """
     Añade o actualiza la columna 'Profit T.' con el porcentaje de variación
-    de 'Profit Tot.' respecto a la fila anterior, formateado con signo y dos decimales.
+    de 'Profit Tot.' respecto a la fila anterior, formateado con dos decimales
+    y sin signo '+' en los positivos.
 
-    - La primera fila se marca como '0.00%'.
-    - '+0.00%' se normaliza a '0%'.
+    - La primera fila (o si hay menos de 2 filas) se marca como '0%'.
+    - Cualquier '0.00%' se normaliza a '0%'.
+    - Se evitan infinidad(es) convirtiéndolas en 0.
     """
     if 'Profit Tot.' not in df.columns:
         raise KeyError("Falta la columna 'Profit Tot.'")
     df = df.copy()
+
+    # 1) Extraer y limpiar la serie numérica
     tot = (
-        pd.to_numeric(
-            df['Profit Tot.'].astype(str).str.replace('[,%]', '', regex=True),
-            errors='coerce'
-        ).fillna(0)
+        df['Profit Tot.']
+          .astype(str)
+          .str.replace('[,%]', '', regex=True)
+          .pipe(pd.to_numeric, errors='coerce')
+          .fillna(0)
     )
-    pct = tot.pct_change().fillna(0).mul(100).round(2)
-    df['Profit T.'] = pct.map(lambda x: f"{x:+.2f}%").replace({'+0.00%': '0%'})
+
+    # 2) Si no hay al menos 2 valores, ponemos todo a '0%'
+    if len(tot) < 2:
+        df['Profit T.'] = ['0%'] * len(df)
+        return df
+
+    # 3) Cálculo manual del % de cambio: (actual – anterior) / anterior
+    pct = (
+        tot.diff()
+           .divide(tot.shift(1))
+           .replace([np.inf, -np.inf], np.nan)  # evitar inf
+           .fillna(0)
+           .mul(100)
+           .round(2)
+    )
+
+    # 4) Formateo: siempre con dos decimales y %,
+    #    sin '+' para positivos, manteniendo '-' en negativos.
+    df['Profit T.'] = (
+        pct.map(lambda x: f"{x:.2f}%")
+           .replace({'0.00%': '0%'})
+    )
+
     return df
 
 
