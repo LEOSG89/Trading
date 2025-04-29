@@ -103,7 +103,26 @@ def mostrar_dd_max(df: pd.DataFrame, chart_key: str) -> None:
             st.markdown(f"<h6 style='text-align: center;'>{top_dup[0][2]}</h6>", unsafe_allow_html=True)
             st.markdown(f"<h6 style='text-align: center; color:green;'>{top_dup[0][3]:.2f}%</h6>", unsafe_allow_html=True)
         with col4:
-            st.markdown(f"<h6 style='text-align: center;'>{top_dup[1][2]}</h6>", unsafe_allow_html=True)
+                if tramos_dup:
+                 top_dup = sorted(tramos_dup, key=lambda x: -x[3])[:2]
+        # Columna 3: primer tramo (si existe)
+        with col3:
+            try:
+                dur0, _, dur_str0, val0 = top_dup[0]
+                st.markdown(f"<h6 style='text-align: center;'>{dur_str0}</h6>", unsafe_allow_html=True)
+                st.markdown(f"<h6 style='text-align: center; color:green;'>{val0:.2f}%</h6>", unsafe_allow_html=True)
+            except (IndexError, TypeError):
+                st.markdown("<h6 style='text-align: center;'>N/A</h6>", unsafe_allow_html=True)
+
+        # Columna 4: segundo tramo (si existe)
+        with col4:
+            try:
+                dur1, _, dur_str1, val1 = top_dup[1]
+                st.markdown(f"<h6 style='text-align: center;'>{dur_str1}</h6>", unsafe_allow_html=True)
+                st.markdown(f"<h6 style='text-align: center; color:green;'>{val1:.2f}%</h6>", unsafe_allow_html=True)
+            except (IndexError, TypeError):
+                st.markdown("<h6 style='text-align: center;'>N/A</h6>", unsafe_allow_html=True)
+
             st.markdown(f"<h6 style='text-align: center; color:green;'>{top_dup[1][3]:.2f}%</h6>", unsafe_allow_html=True)
 
     if mostrar_grafico:
