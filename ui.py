@@ -256,7 +256,7 @@ with tab_edicion:
     df_ed = df.reset_index(drop=True).copy()
     df_ed.insert(0, 'Contador', df_ed.index)
     df_ed['Eliminar'] = False
-    df_ed.drop(columns=['D'], inplace=True, errors='ignore')
+    df_ed.drop(columns=[''], inplace=True, errors='ignore')
 
     numeric_cols = ['#Cont', 'STRK Buy', 'STRK Sell', 'Deposito', 'Retiro', 'Profit']
     for col in numeric_cols:
