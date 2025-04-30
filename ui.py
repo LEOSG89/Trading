@@ -29,6 +29,7 @@ from aplicar_color_general import aplicar_color_general
 from tabla_ganancia_contratos_calculos import tabla_ganancia_contratos_calculos
 from comparativo_histograma_profit_call_put import histograma_profit_call_put
 from comparativo_racha_operaciones_dd_max import comparativo_racha_dd_max
+from comparativo_mapa_calor_tiempo import mostrar_heatmaps_dia_hora
 from calculos_tabla_principal import (
     calcular_profit_operacion, calcular_porcentaje_profit_op, calcular_profit_total,
     calcular_dd_max, calcular_dd_up, calcular_profit_t, calcular_profit_alcanzado_vectorizado,
@@ -98,7 +99,7 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
             if max_idx > 0:
                 # Preset y cálculo de filas por defecto
                 preset = st.radio(
-                    "Preset", [25, 50, 100, 'ALL'],
+                    "Preset", [50, 100, 150, 'ALL'],
                     index=1, horizontal=True,
                     key=f"preset_col{i}"
                 )
@@ -226,8 +227,9 @@ with tab_vista:
            "CALL/PUT por Día (Apilado)": comparativo_trade_diario_apilado,
            "Profit por Día de Semana": comparativo_profit_dia_semana,
            "Porcentaje Aciertos CALL PUT (Dona)": comparativo_dona_call_put,
-           "Histograma Profit CALL/PUT": histograma_profit_call_put,
-           "Racha Operaciones DD/Max": comparativo_racha_dd_max,
+            "Histograma Profit CALL/PUT": histograma_profit_call_put,
+            "Racha Operaciones DD/Max": comparativo_racha_dd_max,
+            "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
     }
 
     if styled_df_vista is not None:
