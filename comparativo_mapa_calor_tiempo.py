@@ -164,4 +164,4 @@ def mostrar_heatmaps_dia_hora(df: pd.DataFrame, chart_key: str):
             st.table(hours_call)
         with col2:
             st.header("PUT")
-            st.table(hours_put) 
+            st.table(hours_put)  
