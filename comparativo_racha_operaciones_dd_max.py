@@ -53,7 +53,7 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
     top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
 
-    # Construir gráfico de rachas
+    # Construir gráfico de rachas (shapes)
     shapes = []
     for run, grupo in df.groupby('run_id_dd'):
         if run not in set(top_pos['run_id_dd']).union(top_neg['run_id_dd']):
@@ -69,8 +69,14 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
 
     fig = go.Figure()
     fig.update_layout(hovermode="x unified", shapes=shapes)
+
+    # Trazas: líneas según DD/Max, puntos según Profit (todas las rachas)
     for run, grupo in df.groupby('run_id_dd'):
-        color = 'green' if grupo['signo_dd'].iloc[0] > 0 else 'red' if grupo['signo_dd'].iloc[0] < 0 else 'yellow'
+        # Color de la línea según DD/Max
+        signo_dd = grupo['signo_dd'].iloc[0]
+        line_color = 'green' if signo_dd > 0 else 'red' if signo_dd < 0 else 'yellow'
+
+        # Preparar X e Y (incluyendo punto anterior para continuidad)
         if grupo['Index'].iloc[0] > 0:
             prev_idx = grupo['Index'].iloc[0] - 1
             x_vals = [prev_idx] + grupo['Index'].tolist()
@@ -78,7 +84,26 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         else:
             x_vals = grupo['Index'].tolist()
             y_vals = grupo['dd_val'].tolist()
-        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode="lines+markers", line=dict(color=color), marker=dict(color=color), showlegend=False))
+
+        # Color de los marcadores según Profit
+        profit_vals = df.loc[x_vals, 'Profit']
+        marker_colors = [
+            'green'  if v > 0 else
+            'red'    if v < 0 else
+            'yellow'
+            for v in profit_vals
+        ]
+
+        # Añadir la traza con marcadores más grandes
+        fig.add_trace(go.Scatter(
+            x=x_vals,
+            y=y_vals,
+            mode="lines+markers",
+            line=dict(color=line_color),
+            marker=dict(color=marker_colors, size=12),  # tamaño aumentado
+            showlegend=False
+        ))
+
     st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
     # Funciones de formateo
@@ -112,32 +137,30 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
 
     # Renombrar encabezados y agregar nuevas columnas
     df_pos.rename(columns={
-        'Racha_Ops':            'Racha D.up',
-        'DD_Maximo_Drawdown':   'Maximo Drawdown',
-        'DD_Maximo_Drawup':     'Maximo Drawup',
-        'Media_Ops':            'Media Ops up'
+        'Racha_Ops':          'Racha D.up',
+        'DD_Maximo_Drawdown': 'Maximo Drawdown',
+        'DD_Maximo_Drawup':   'Maximo Drawup',
+        'Media_Ops':          'Media Ops up'
     }, inplace=True)
     rp_up = top_pf_up.tolist()
     rp_up = rp_up[:len(df_pos)] + [None] * max(0, len(df_pos) - len(rp_up))
     df_pos['Racha Positiva'] = rp_up
 
     df_neg.rename(columns={
-        'Racha_Ops':            'Racha D.dw',
-        'DD_Maximo_Drawdown':   'Maximo Drawdown',
-        'DD_Maximo_Drawup':     'Maximo Drawup',
-        'Media_Ops':            'Media Ops dw'
+        'Racha_Ops':          'Racha D.dw',
+        'DD_Maximo_Drawdown': 'Maximo Drawdown',
+        'DD_Maximo_Drawup':   'Maximo Drawup',
+        'Media_Ops':          'Media Ops dw'
     }, inplace=True)
     rp_dw = top_pf_dw.tolist()
     rp_dw = rp_dw[:len(df_neg)] + [None] * max(0, len(df_neg) - len(rp_dw))
     df_neg['Racha Negativa'] = rp_dw
 
-        # Mostrar en pestañas con colores en las columnas de racha y Drawup/Drawdown
+    # Mostrar en pestañas con colores
     tab1, tab2 = st.tabs(["Top 5 Positivas", "Top 5 Negativas"])
     with tab1:
-        # Colorear Racha Positiva y Maximo Drawup en verde
         sty_pos = df_pos.style.applymap(lambda v: 'color: green;', subset=['Racha Positiva', 'Maximo Drawup'])
         st.dataframe(sty_pos, use_container_width=True)
     with tab2:
-        # Colorear Racha Negativa y Maximo Drawdown en rojo
         sty_neg = df_neg.style.applymap(lambda v: 'color: red;', subset=['Racha Negativa', 'Maximo Drawdown'])
         st.dataframe(sty_neg, use_container_width=True)
