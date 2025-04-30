@@ -99,7 +99,7 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
             if max_idx > 0:
                 # Preset y cálculo de filas por defecto
                 preset = st.radio(
-                    "Preset", [50, 100, 150, 'ALL'],
+                    "Preset", [10, 50, 100, 150, 'ALL'],
                     index=1, horizontal=True,
                     key=f"preset_col{i}"
                 )
