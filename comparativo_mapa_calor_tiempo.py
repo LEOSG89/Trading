@@ -5,7 +5,7 @@ import streamlit as st
 def mostrar_heatmaps_dia_hora(df: pd.DataFrame, chart_key: str):
     # 1) COLUMNAS NECESARIAS
     if not {'Fecha / Hora', 'Profit', 'C&P'}.issubset(df.columns):
-        st.warning("Tu DataFrame debe tener las columnas 'Fecha / Hora', 'Profit' y 'C&P'.")
+        st.warning("Tu DataFrame debe tener las columnas 'Fecha / Hora', 'Profit' y 'C&P'.") 
         return
 
     # 2) FILTRO CALL / PUT / AMBAS
