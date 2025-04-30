@@ -4,7 +4,6 @@ import streamlit as st
 import os
 import json
 
-
 def mostrar_profit_area(df: pd.DataFrame, chart_key: str) -> None:
     """
     Gráfico de área para la columna 'Profit Tot.', con franjas para depósitos y retiros y exclusiones persistentes.
@@ -26,7 +25,10 @@ def mostrar_profit_area(df: pd.DataFrame, chart_key: str) -> None:
         excl = [0] if 0 in df_idx else []
         with open(json_file,'w') as f: json.dump(excl,f)
 
+    # Filtrar valores inválidos de exclusión
+    excl = [i for i in excl if i in df_idx]
     excl = st.multiselect("Excluir índices Profit Tot.:", df_idx, default=excl, key=f"ms_{chart_key}_profit")
+
     try:
         with open(json_file,'w') as f: json.dump(excl,f)
     except: pass
