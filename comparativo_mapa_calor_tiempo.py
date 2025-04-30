@@ -5,7 +5,7 @@ import streamlit as st
 def mostrar_heatmaps_dia_hora(df: pd.DataFrame, chart_key: str):
     # 1) COLUMNAS NECESARIAS
     if not {'Fecha / Hora', 'Profit', 'C&P'}.issubset(df.columns):
-        st.warning("Tu DataFrame debe tener las columnas 'Fecha / Hora', 'Profit' y 'C&P'.") 
+        st.warning("Tu DataFrame debe tener las columnas 'Fecha / Hora', 'Profit' y 'C&P'.")
         return
 
     # 2) FILTRO CALL / PUT / AMBAS
@@ -51,7 +51,14 @@ def mostrar_heatmaps_dia_hora(df: pd.DataFrame, chart_key: str):
                 z=pivot.values,
                 x=pivot.columns,
                 y=pivot.index,
-                colorscale='Viridis',
+                colorscale=[
+                [0.0, '#0E1117'],
+                [0.2, '#440154'], 
+                [0.4, '#31688e'], 
+                [0.6, '#35b779'], 
+                [0.8, '#fde725'], 
+                [1.0, '#00FF00'] 
+                ],
                 colorbar=dict(title="# Ops")
             ))
             ticktext = [f"{(h%12 or 12)}{'AM' if h<12 else 'PM'}" for h in pivot.columns]
@@ -164,4 +171,4 @@ def mostrar_heatmaps_dia_hora(df: pd.DataFrame, chart_key: str):
             st.table(hours_call)
         with col2:
             st.header("PUT")
-            st.table(hours_put)  
+            st.table(hours_put)
