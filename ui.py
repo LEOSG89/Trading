@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd 
+import pandas as pd
 import os, json
 import config
 from copia_tabla import copiar_datos_a_tabla
@@ -238,19 +238,42 @@ with tab_vista:
         st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
 
     secciones = [("", "rango_col1", "rango_col2"), (" Secundarios", "rango_col3", "rango_col4")]
-    for seccion, rango1, rango2 in secciones:
-        expanded = True if seccion == "" else False
-        with st.expander(f"Gráficos Comparativos{seccion}", expanded=expanded):
-            select_col1, select_col2 = st.columns(2, gap="medium")
-            with select_col1:
-                grafico_col1 = st.selectbox(f"Gráfico Columna 1{seccion}", list(opciones_graficos.keys()), key=f"grafico_1{seccion}")
-            with select_col2:
-                grafico_col2 = st.selectbox(f"Gráfico Columna 2{seccion}", list(opciones_graficos.keys()), index=1, key=f"grafico_2{seccion}")
-            col1, col2 = st.columns(2, gap="small")
-            with col1:
-                opciones_graficos[grafico_col1](df.iloc[st.session_state[rango1][0]:st.session_state[rango1][1]+1], chart_key=f"chart_1_{grafico_col1}{seccion}")
-            with col2:
-                opciones_graficos[grafico_col2](df.iloc[st.session_state[rango2][0]:st.session_state[rango2][1]+1], chart_key=f"chart_2_{grafico_col2}{seccion}")
+for seccion, rango1, rango2 in secciones:
+    expanded = True if seccion == "" else False
+    with st.expander(f"Gráficos Comparativos{seccion}", expanded=expanded):
+        select_col1, select_col2 = st.columns(2, gap="medium")
+
+        with select_col1:
+            grafico_col1 = st.selectbox(
+                f"Gráfico Columna 1{seccion}",
+                list(opciones_graficos.keys()),
+                index=list(opciones_graficos.keys()).index(
+                    "Racha Operaciones DD/Max" if seccion == "" else "Porcentaje Aciertos CALL PUT (Dona)"
+                ),
+                key=f"grafico_1{seccion}"
+            )
+
+        with select_col2:
+            grafico_col2 = st.selectbox(
+                f"Gráfico Columna 2{seccion}",
+                list(opciones_graficos.keys()),
+                index=list(opciones_graficos.keys()).index(
+                    "CALL vs PUT Línea" if seccion == "" else "DD/Max"
+                ),
+                key=f"grafico_2{seccion}"
+            )
+
+        col1, col2 = st.columns(2, gap="small")
+        with col1:
+            opciones_graficos[grafico_col1](
+                df.iloc[st.session_state[rango1][0]:st.session_state[rango1][1]+1],
+                chart_key=f"chart_1_{grafico_col1}{seccion}"
+            )
+        with col2:
+            opciones_graficos[grafico_col2](
+                df.iloc[st.session_state[rango2][0]:st.session_state[rango2][1]+1],
+                chart_key=f"chart_2_{grafico_col2}{seccion}"
+            )
 
 with tab_edicion:
     df_ed = df.reset_index(drop=True).copy()
