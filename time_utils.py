@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 
+# Zona horaria local de Miami
+TZ_LOCAL = "America/New_York"
+
 
 def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -19,6 +22,18 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     )
     if not mask.any():
         return df
+
+    # Asegurar que las fechas estén en la zona local
+    df.loc[mask, 'Fecha / Hora'] = (
+        df.loc[mask, 'Fecha / Hora']
+          .dt.tz_localize('UTC', ambiguous='infer')
+          .dt.tz_convert(TZ_LOCAL)
+    )
+    df.loc[mask, 'Fecha / Hora de Cierre'] = (
+        df.loc[mask, 'Fecha / Hora de Cierre']
+          .dt.tz_localize('UTC', ambiguous='infer')
+          .dt.tz_convert(TZ_LOCAL)
+    )
 
     delta = df.loc[mask, 'Fecha / Hora de Cierre'] - df.loc[mask, 'Fecha / Hora']
     total_sec = delta.dt.total_seconds()
@@ -63,18 +78,25 @@ def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df['Dia LIVE'] = ''
 
-    # Solo filas abiertas con Fecha / Hora válida
     mask = df['Fecha / Hora de Cierre'].isna() & df['Fecha / Hora'].notna()
     if not mask.any():
         return df
 
-    now = pd.Timestamp.now()
+    # “Ahora” en zona Miami
+    now = pd.Timestamp.now(tz=TZ_LOCAL)
+
+    # Asegurar que la apertura esté en UTC→Miami
+    df.loc[mask, 'Fecha / Hora'] = (
+        df.loc[mask, 'Fecha / Hora']
+          .dt.tz_localize('UTC', ambiguous='infer')
+          .dt.tz_convert(TZ_LOCAL)
+    )
+
     delta = now - df.loc[mask, 'Fecha / Hora']
     total_sec = delta.dt.total_seconds()
     days = delta.dt.days.fillna(0).astype(int)
     wd = df.loc[mask, 'Fecha / Hora'].dt.weekday.fillna(0).astype(int)
 
-    # Matriz de contar sábados y domingos en j días desde wd
     extras = np.zeros((7,7), dtype=int)
     for w in range(7):
         for r in range(7):
@@ -85,41 +107,7 @@ def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
     weeks = days // 7
     rem = days % 7
     extras_list = [extras[w, r] for w, r in zip(wd, rem)]
-    extras_series = pd.Series(extras_list, index=delta.index)
-    weekend_days = weeks * 2 + extras_series
-
-    sec_fds = weekend_days * 24 * 3600
-    hab = (total_sec - sec_fds).clip(lower=0)
-
-    dias = (hab // (24*3600)).astype(int)
-    horas = ((hab % (24*3600)) // 3600).astype(int)
-    minutos = ((hab % 3600) // 60).astype(int)
-
-    df.loc[mask, 'Dia LIVE'] = (
-        dias.astype(str) + 'd ' +
-        horas.astype(str) + 'h ' +
-        minutos.astype(str).str.zfill(2) + 'm'
-    )
-    return df
-
-    now = pd.Timestamp.now()
-    delta = now - df.loc[mask, 'Fecha / Hora']
-    total_sec = delta.dt.total_seconds()
-    days = delta.dt.days
-    wd = df.loc[mask, 'Fecha / Hora'].dt.weekday
-
-    # Matriz de contar sábados y domingos en j días desde wd
-    extras = np.zeros((7,7), dtype=int)
-    for w in range(7):
-        for r in range(7):
-            extras[w, r] = sum(
-                1 for d in [(w + k) % 7 for k in range(r)] if d >= 5
-            )
-
-    weeks = days // 7
-    rem = days % 7
-    extras_list = [extras[int(w), int(r)] for w, r in zip(wd, rem)]
-    extras_series = pd.Series(extras_list, index=delta.index)
+    extras_series = pd.Series(extras_list, index=df.loc[mask].index)
     weekend_days = weeks * 2 + extras_series
 
     sec_fds = weekend_days * 24 * 3600
@@ -182,3 +170,4 @@ def calcular_tiempo_dr(df: pd.DataFrame) -> pd.DataFrame:
         minutos.astype(str).str.zfill(2) + 'm'
     )
     return df
+
