@@ -15,6 +15,12 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df['T. Op'] = ''
 
+    # Asegurar formato datetime y zona horaria
+    df['Fecha / Hora'] = pd.to_datetime(df['Fecha / Hora'], errors='coerce')
+    df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
+    df['Fecha / Hora'] = df['Fecha / Hora'].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
+    df['Fecha / Hora de Cierre'] = df['Fecha / Hora de Cierre'].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
+
     mask = (
         df['Fecha / Hora de Cierre'].notna() &
         df['Deposito'].isna() &
@@ -22,18 +28,6 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     )
     if not mask.any():
         return df
-
-    # Asegurar que las fechas estén en la zona local
-    df.loc[mask, 'Fecha / Hora'] = (
-        df.loc[mask, 'Fecha / Hora']
-          .dt.tz_localize('UTC', ambiguous='infer')
-          .dt.tz_convert(TZ_LOCAL)
-    )
-    df.loc[mask, 'Fecha / Hora de Cierre'] = (
-        df.loc[mask, 'Fecha / Hora de Cierre']
-          .dt.tz_localize('UTC', ambiguous='infer')
-          .dt.tz_convert(TZ_LOCAL)
-    )
 
     delta = df.loc[mask, 'Fecha / Hora de Cierre'] - df.loc[mask, 'Fecha / Hora']
     total_sec = delta.dt.total_seconds()
@@ -78,20 +72,15 @@ def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df['Dia LIVE'] = ''
 
+    # Asegurar formato datetime y zona horaria
+    df['Fecha / Hora'] = pd.to_datetime(df['Fecha / Hora'], errors='coerce')
+    df['Fecha / Hora'] = df['Fecha / Hora'].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
+
     mask = df['Fecha / Hora de Cierre'].isna() & df['Fecha / Hora'].notna()
     if not mask.any():
         return df
 
-    # “Ahora” en zona Miami
     now = pd.Timestamp.now(tz=TZ_LOCAL)
-
-    # Asegurar que la apertura esté en UTC→Miami
-    df.loc[mask, 'Fecha / Hora'] = (
-        df.loc[mask, 'Fecha / Hora']
-          .dt.tz_localize('UTC', ambiguous='infer')
-          .dt.tz_convert(TZ_LOCAL)
-    )
-
     delta = now - df.loc[mask, 'Fecha / Hora']
     total_sec = delta.dt.total_seconds()
     days = delta.dt.days.fillna(0).astype(int)
@@ -138,6 +127,12 @@ def calcular_tiempo_dr(df: pd.DataFrame) -> pd.DataFrame:
     df['Tiempo D/R'] = ''
     if not mask.any():
         return df
+
+    # Asegurar formato datetime y zona horaria
+    df['Fecha / Hora'] = pd.to_datetime(df['Fecha / Hora'], errors='coerce')
+    df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
+    df['Fecha / Hora'] = df['Fecha / Hora'].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
+    df['Fecha / Hora de Cierre'] = df['Fecha / Hora de Cierre'].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
 
     delta = df.loc[mask, 'Fecha / Hora de Cierre'] - df.loc[mask, 'Fecha / Hora']
     total_sec = delta.dt.total_seconds()
