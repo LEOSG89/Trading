@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-import streamlit as st
-import pandas as pd
 import pandas.api.types as ptypes
 import os, json
 import config
+
 from copia_tabla import copiar_datos_a_tabla
 from botones import crear_botones_trading, crear_botones_iv_rank
 from operations import agregar_operacion, procesar_deposito_retiro
