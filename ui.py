@@ -137,7 +137,7 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
     st.number_input("Valor (solo DEP/RET)", value=0.0, key='input_valor')
 
     # Llamada al módulo de edición en pestañas
-    st.session_state.datos = tabla_editable_eliminar_renombrar_limpiar_columnas(
+    st.session_state.datos = tabla_editable_eliminar_renombrar_limpiar_columnas( 
         st.session_state.datos
     )
 
