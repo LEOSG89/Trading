@@ -2,26 +2,25 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import config
-
+from combertir_hora_local import obtener_hora_local
 
 def agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.DataFrame:
     """
-    Lógica unificada para agregar operaciones CALL, PUT, DEP, RET,
-    con día de semana abreviado, timestamp real y cálculo de STRK Buy/Sell y Profit.
+    Agrega una operación CALL, PUT, DEP o RET con timestamp y día local correcto.
     """
-    # Usar timestamp real de pandas para mejor compatibilidad como datetime
-    ahora = pd.Timestamp.now()
+    ahora = obtener_hora_local()  # por defecto: America/New_York
     dias = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do']
     dia_sem = dias[ahora.weekday()]
 
     asset = st.session_state.get('selected_asset', '')
     val = float(st.session_state.get('input_valor', '0') or 0)
 
-    # Inicializar fila con None
     row = {col: None for col in config.FIXED_COLS}
     row['Activo'] = asset
-    row['Fecha / Hora'] = ahora
-    row['Fecha / Hora de Cierre'] = ahora
+    # ⚠️ Convertir a string plano antes de crear el DataFrame
+    row['Fecha / Hora'] = ahora.strftime('%Y-%m-%d %H:%M:%S')
+    row['Fecha / Hora de Cierre'] = ahora.strftime('%Y-%m-%d %H:%M:%S')
+
     row['Día'] = dia_sem
 
     if asset == 'DEP':
@@ -31,7 +30,6 @@ def agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.D
         row['Retiro'] = -val
         row['Profit'] = -val
     else:
-        # CALL o PUT
         row['C&P'] = tipo_op
         row['D'] = '3d'
         strike_buy = st.session_state.get('monto_invertir', 0.0)
@@ -41,11 +39,18 @@ def agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.D
         row['Profit'] = (row['STRK Sell'] - row['STRK Buy']) * row['#Cont']
 
     nueva = pd.DataFrame([row])
+
+    # ✅ Reparar columnas de hora
+    for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
+        nueva[col] = pd.to_datetime(nueva[col], errors='coerce')
+
     df0 = df.dropna(how='all')
     df_final = pd.concat([df0, nueva], ignore_index=True)
-    # Guardar en sesión
+
     st.session_state.datos = df_final
     return df_final
+
+
 
 
 def procesar_deposito_retiro(df: pd.DataFrame) -> pd.DataFrame:
