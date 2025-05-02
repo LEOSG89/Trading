@@ -2,26 +2,28 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import config
+from time_utils import TZ_LOCAL  # importar zona local
 
 
 def agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.DataFrame:
     """
     Lógica unificada para agregar operaciones CALL, PUT, DEP, RET,
-    con día de semana abreviado, timestamp real y cálculo de STRK Buy/Sell y Profit.
+    con día de semana abreviado, timestamp real (zona Miami) y cálculo de STRK Buy/Sell y Profit.
     """
-    # Usar timestamp real de pandas para mejor compatibilidad como datetime
-    ahora = pd.Timestamp.now()
+    # Timestamp local (Miami)
+    ahora = pd.Timestamp.now(tz=TZ_LOCAL)
     dias = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do']
     dia_sem = dias[ahora.weekday()]
 
     asset = st.session_state.get('selected_asset', '')
     val = float(st.session_state.get('input_valor', '0') or 0)
 
-    # Inicializar fila con None
-    row = {col: None for col in config.FIXED_COLS}
+    # Inicializar fila con NA
+    row = {col: pd.NA for col in config.FIXED_COLS}
     row['Activo'] = asset
     row['Fecha / Hora'] = ahora
-    row['Fecha / Hora de Cierre'] = ahora
+    # Mantener Fecha / Hora de Cierre vacía para live calc
+    row['Fecha / Hora de Cierre'] = pd.NaT
     row['Día'] = dia_sem
 
     if asset == 'DEP':
@@ -41,11 +43,13 @@ def agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.D
         row['Profit'] = (row['STRK Sell'] - row['STRK Buy']) * row['#Cont']
 
     nueva = pd.DataFrame([row])
-    df0 = df.dropna(how='all')
-    df_final = pd.concat([df0, nueva], ignore_index=True)
-    # Guardar en sesión
+    # Concatenar sin eliminar filas del DF original
+    df_final = pd.concat([df, nueva], ignore_index=True)
+
+    # Guardar en sesión y devolver
     st.session_state.datos = df_final
     return df_final
+
 
 
 def procesar_deposito_retiro(df: pd.DataFrame) -> pd.DataFrame:
