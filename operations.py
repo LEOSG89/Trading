@@ -73,8 +73,9 @@ def procesar_deposito_retiro(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[mask_ret, 'Activo'] = 'RET'
 
     # 4) Limpieza y repoblado
-    df['Deposito'] = pd.NA
-    df['Retiro'] = pd.NA
+    df.loc[mask_dep, 'Deposito'] = pd.NA
+    df.loc[mask_ret, 'Retiro'] = pd.NA
+
     df.loc[mask_dep, 'Deposito'] = dep_num[mask_dep].round(0).astype('Int64')
     df.loc[mask_ret, 'Retiro'] = (-ret_num[mask_ret].abs()).round(0).astype('Int64')  # siempre negativo
 
