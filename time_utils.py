@@ -40,7 +40,13 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     df['Fecha / Hora'] = _localize_series(df['Fecha / Hora'])
     df['Fecha / Hora de Cierre'] = _localize_series(df['Fecha / Hora de Cierre'])
 
+        # Sólo filas con apertura y cierre válidos y sin depósitos/retiros
     mask = (
+        df['Fecha / Hora de Cierre'].notna() &
+        df['Fecha / Hora'].notna() &
+        df['Deposito'].isna() &
+        df['Retiro'].isna()
+    )
         df['Fecha / Hora de Cierre'].notna() &
         df['Deposito'].isna() &
         df['Retiro'].isna()
