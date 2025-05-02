@@ -52,40 +52,38 @@ def agregar_operacion(df: pd.DataFrame, porcentaje: float, tipo_op: str) -> pd.D
 
 
 
-
-import pandas as pd
-
 def procesar_deposito_retiro(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    # 1) Parsear a numérico
-    dep_num = pd.to_numeric(df['Deposito'], errors='coerce')
-    ret_num = pd.to_numeric(df['Retiro'], errors='coerce')
+    # Forzar conversión de tipo
+    df['Deposito'] = pd.to_numeric(df['Deposito'], errors='coerce')
+    df['Retiro']   = pd.to_numeric(df['Retiro'], errors='coerce')
 
-    # 2) Máscaras: detectar cualquier valor válido
+    dep_num = df['Deposito']
+    ret_num = df['Retiro']
+
+    # Detectar depósitos y retiros (aunque vengan positivos)
     mask_dep = dep_num > 0
-    mask_ret = ret_num.notna()  # <-- acepta positivos o negativos
+    mask_ret = ret_num.notna()
 
-    # 3) Asignar Profit y Activo
-    df.loc[mask_dep, 'Profit'] =  dep_num[mask_dep]
+    # Asignar valores
+    df.loc[mask_dep, 'Profit'] = dep_num[mask_dep]
     df.loc[mask_dep, 'Activo'] = 'DEP'
-    df.loc[mask_ret, 'Profit'] = -ret_num[mask_ret].abs()  # siempre negativo
+    df.loc[mask_ret, 'Profit'] = -ret_num[mask_ret].abs()
     df.loc[mask_ret, 'Activo'] = 'RET'
 
-    # 4) Limpieza y repoblado
-    df.loc[mask_dep, 'Deposito'] = pd.NA
-    df.loc[mask_ret, 'Retiro'] = pd.NA
-
+    # Limpiar solo las filas válidas
     df.loc[mask_dep, 'Deposito'] = dep_num[mask_dep].round(0).astype('Int64')
-    df.loc[mask_ret, 'Retiro'] = (-ret_num[mask_ret].abs()).round(0).astype('Int64')  # siempre negativo
+    df.loc[mask_ret, 'Retiro']   = (-ret_num[mask_ret].abs()).round(0).astype('Int64')
 
-    # 5) Limpiar columnas auxiliares
+    # Limpiar columnas auxiliares solo en esas filas
     cols_limpieza = ['C&P', 'D', '#Cont', 'STRK Buy', 'STRK Sell']
     for col in cols_limpieza:
         if col in df.columns:
             df.loc[mask_dep | mask_ret, col] = pd.NA
 
     return df
+
 
 
 def agregar_iv_rank(df: pd.DataFrame, rank_str: str) -> pd.DataFrame:
