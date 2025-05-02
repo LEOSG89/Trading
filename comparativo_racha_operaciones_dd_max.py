@@ -25,18 +25,22 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     if 'Fecha / Hora de Cierre' in df.columns:
         df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
 
-    # 3) Resumen de rachas DD/Max
+# 3) Resumen de rachas DD/Max
     resumen = (
         df.groupby(['run_id_dd','signo_dd'], as_index=False)
-          .agg(
-              Racha_Ops=('Index','count'),
-              DD_Maximo_Drawdown=('dd_val','min'),
-              DD_Maximo_Drawup=('dd_val','max'),
-              Duracion=('Index', lambda idx: (
-                  df.loc[idx.max(),'Fecha / Hora de Cierre'] - df.loc[idx.min(),'Fecha / Hora']
-              ) if 'Fecha / Hora de Cierre' in df.columns else pd.Timedelta(0))
+            .apply(lambda g: pd.Series({
+              'Racha_Ops': g.shape[0],
+              'DD_Maximo_Drawdown': g['dd_val'].min(),
+              'DD_Maximo_Drawup': g['dd_val'].max(),
+              'Duracion': (
+                 pd.to_timedelta(g['Fecha / Hora de Cierre'].iloc[-1] - g['Fecha / Hora'].iloc[0])
+                 if pd.notna(g['Fecha / Hora de Cierre'].iloc[-1]) and pd.notna(g['Fecha / Hora'].iloc[0])
+                 else pd.Timedelta(0)
           )
+      }))
+      .reset_index(drop=True)
     )
+
     resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
     top_pos = resumen[resumen['signo_dd']==1].nlargest(5,'Racha_Ops')
     top_neg = resumen[resumen['signo_dd']==-1].nlargest(5,'Racha_Ops')
@@ -95,10 +99,17 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     # 7) Formateadores
     def fmt_pct(v): return f"{v:.2f}%"
     def fmt_td(td):
-        days, secs = td.days, td.seconds
-        hrs = secs//3600
-        mins = (secs%3600)//60
-        return f"{days}d {hrs:02d}h {mins:02d}m" if days else f"{hrs:02d}h {mins:02d}m"
+       if pd.isna(td):
+        return "NaT"
+       try:
+          days = int(td.days)
+          secs = int(td.seconds)
+          hrs = secs // 3600
+          mins = (secs % 3600) // 60
+          return f"{days}d {hrs:02d}h {mins:02d}m" if days else f"{hrs:02d}h {mins:02d}m"
+       except Exception:
+        return str(td)
+
 
     # 8) Preparar DataFrames de tablas
     df_pos = top_pos[['Racha_Ops','DD_Maximo_Drawdown','DD_Maximo_Drawup','Duracion','Media_Ops']].copy()
