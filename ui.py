@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import pandas.api.types as ptypes
 import os, json
 import config
 from copia_tabla import copiar_datos_a_tabla
@@ -138,7 +137,7 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
     st.number_input("Valor (solo DEP/RET)", value=0.0, key='input_valor')
 
     # Llamada al módulo de edición en pestañas
-    st.session_state.datos = tabla_editable_eliminar_renombrar_limpiar_columnas( 
+    st.session_state.datos = tabla_editable_eliminar_renombrar_limpiar_columnas(
         st.session_state.datos
     )
 
@@ -151,22 +150,12 @@ df = st.session_state.datos.copy()
 df = limpiar_columnas(df)
 
 for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
-    if col in df and not ptypes.is_datetime64_any_dtype(df[col]):
-        try:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-        except Exception:
-            # si falla, dejamos el valor tal cual
-            pass
+    if col in df:
+        df[col] = pd.to_datetime(df[col], errors='coerce')
 
 df = calcular_tiempo_operacion_vectorizado(df)
-
-# ► Generar columna Duracion para los comparativos que la necesitan
-if 'Fecha / Hora' in df.columns and 'Fecha / Hora de Cierre' in df.columns:
-    df['Duracion'] = df['Fecha / Hora de Cierre'] - df['Fecha / Hora']
-
 if '% Profit. Op' in df.columns and not pd.api.types.is_string_dtype(df['% Profit. Op']):
     df['% Profit. Op'] = df['% Profit. Op'].astype(str)
-
 
 df = calcular_dia_live(df)
 df = calcular_tiempo_dr(df)
@@ -287,17 +276,10 @@ for seccion, rango1, rango2 in secciones:
             )
 
 with tab_edicion:
-    # Preparamos la tabla de edición: quitamos 'Duracion' para evitar conflictos
     df_ed = df.reset_index(drop=True).copy()
-    df_ed.drop(columns=['Duracion'], inplace=True, errors=True)
-
-    # Ahora insertamos el contador y la columna de eliminación
     df_ed.insert(0, 'Contador', df_ed.index)
     df_ed['Eliminar'] = False
     df_ed.drop(columns=[''], inplace=True, errors='ignore')
-
-    # (Resto de tu configuración de column_config y st.data_editor tal como está...)
-
 
     numeric_cols = ['#Cont', 'STRK Buy', 'STRK Sell', 'Deposito', 'Retiro', 'Profit']
     for col in numeric_cols:
