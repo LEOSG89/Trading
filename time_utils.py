@@ -9,34 +9,39 @@ TZ_LOCAL = "America/New_York"
 def _localize_series(s: pd.Series) -> pd.Series:
     """
     Convierte una Serie de timestamps a datetime y la normaliza de UTC a TZ_LOCAL.
-    Si ya está tz-aware, solo convierte de zona.
+    Si la serie no tiene formato datetime válido, devuelve NaT o valores originales.
     """
-    # Solo parsear si no es datetime
+    # Intentar parsear a datetime si no lo es
     if not ptypes.is_datetime64_any_dtype(s):
         try:
             s2 = pd.to_datetime(s, errors='coerce')
         except Exception:
-            s2 = s
+            # Si no se puede parsear, dejamos todo como NaT
+            return pd.Series([pd.NaT] * len(s), index=s.index)
     else:
         s2 = s
-    # Normalizar zona
+
+    # Ahora s2 es datetime64[ns] pero puede ser tz-aware o naive
+    # Si no es datetime dtype, devolvemos NaT
+    if not ptypes.is_datetime64_any_dtype(s2):
+        return pd.Series([pd.NaT] * len(s2), index=s2.index)
+
+    # Normalizar zona: si es naive, localizar; si tz-aware, convertir
     try:
-        return s2.dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
-    except TypeError:
-        return s2.dt.tz_convert(TZ_LOCAL)
+        if s2.dt.tz is None:
+            return s2.dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
+        else:
+            return s2.dt.tz_convert(TZ_LOCAL)
+    except Exception:
+        # En caso de cualquier error, devolver solo la serie datetime sin tz
+        return s2
 
 
 def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calcula el tiempo operativo entre 'Fecha / Hora' y 'Fecha / Hora de Cierre',
-    excluyendo fines de semana, de forma completamente vectorizada.
-    Añade o actualiza la columna 'T. Op' con el formato 'Xd Yh ZZm'.
-    Si existe Deposito o Retiro, deja 'T. Op' vacío.
-    """
     df = df.copy()
     df['T. Op'] = ''
 
-    # Normalizar timestamps de apertura y cierre
+    # Normalizar timestamps
     df['Fecha / Hora'] = _localize_series(df.get('Fecha / Hora', pd.Series(dtype='datetime64[ns]')))
     df['Fecha / Hora de Cierre'] = _localize_series(df.get('Fecha / Hora de Cierre', pd.Series(dtype='datetime64[ns]')))
 
@@ -84,12 +89,6 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Añade o actualiza la columna 'Dia LIVE':
-      - Para operaciones abiertas (sin 'Fecha / Hora de Cierre'), calcula tiempo hábil
-        excluyendo fines de semana desde 'Fecha / Hora' hasta ahora.
-      - Para operaciones cerradas o sin 'Fecha / Hora', deja 'Dia LIVE' vacío.
-    """
     df = df.copy()
     df['Dia LIVE'] = ''
 
@@ -135,20 +134,17 @@ def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calcular_tiempo_dr(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Añade 'Tiempo D/R' donde 'Deposito' o 'Retiro' no es NaN y hay fecha de cierre.
-    Excluye fines de semana de forma vectorizada.
-    """
     df = df.copy()
     df['Tiempo D/R'] = ''
 
     mask = (
-        df['Deposito'].notna() | df['Retiro'].notna()
-    ) & df['Fecha / Hora de Cierre'].notna()
+        (df['Deposito'].notna() | df['Retiro'].notna()) &
+        df['Fecha / Hora de Cierre'].notna()
+    )
     if not mask.any():
         return df
 
-    # Normalizar timestamps
+    # Normalizar
     df['Fecha / Hora'] = _localize_series(df.get('Fecha / Hora', pd.Series(dtype='datetime64[ns]')))
     df['Fecha / Hora de Cierre'] = _localize_series(df.get('Fecha / Hora de Cierre', pd.Series(dtype='datetime64[ns]')))
 
