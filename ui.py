@@ -287,10 +287,17 @@ for seccion, rango1, rango2 in secciones:
             )
 
 with tab_edicion:
+    # Preparamos la tabla de edición: quitamos 'Duracion' para evitar conflictos
     df_ed = df.reset_index(drop=True).copy()
+    df_ed.drop(columns=['Duracion'], inplace=True, errors=True)
+
+    # Ahora insertamos el contador y la columna de eliminación
     df_ed.insert(0, 'Contador', df_ed.index)
     df_ed['Eliminar'] = False
     df_ed.drop(columns=[''], inplace=True, errors='ignore')
+
+    # (Resto de tu configuración de column_config y st.data_editor tal como está...)
+
 
     numeric_cols = ['#Cont', 'STRK Buy', 'STRK Sell', 'Deposito', 'Retiro', 'Profit']
     for col in numeric_cols:
