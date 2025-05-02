@@ -150,8 +150,12 @@ df = st.session_state.datos.copy()
 df = limpiar_columnas(df)
 
 for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
-    if col in df:
-        df[col] = pd.to_datetime(df[col], errors='coerce')
+    if col in df and not ptypes.is_datetime64_any_dtype(df[col]):
+        try:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+        except Exception:
+            # si falla, dejamos el valor tal cual
+            pass
 
 df = calcular_tiempo_operacion_vectorizado(df)
 if '% Profit. Op' in df.columns and not pd.api.types.is_string_dtype(df['% Profit. Op']):
