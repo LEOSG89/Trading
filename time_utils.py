@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pandas.api.types as ptypes
 
 # Zona horaria local de Miami
 TZ_LOCAL = "America/New_York"
@@ -10,12 +11,19 @@ def _localize_series(s: pd.Series) -> pd.Series:
     Convierte una Serie de timestamps a datetime y la normaliza de UTC a TZ_LOCAL.
     Si ya está tz-aware, solo convierte de zona.
     """
-    s = pd.to_datetime(s, errors='coerce')
+    # Solo parsear si no es datetime
+    if not ptypes.is_datetime64_any_dtype(s):
+        try:
+            s2 = pd.to_datetime(s, errors='coerce')
+        except Exception:
+            s2 = s
+    else:
+        s2 = s
+    # Normalizar zona
     try:
-        return s.dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
+        return s2.dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(TZ_LOCAL)
     except TypeError:
-        # ya tenía zona
-        return s.dt.tz_convert(TZ_LOCAL)
+        return s2.dt.tz_convert(TZ_LOCAL)
 
 
 def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
@@ -28,7 +36,7 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df['T. Op'] = ''
 
-    # Normalizar timestamps
+    # Normalizar timestamps de apertura y cierre
     df['Fecha / Hora'] = _localize_series(df['Fecha / Hora'])
     df['Fecha / Hora de Cierre'] = _localize_series(df['Fecha / Hora de Cierre'])
 
@@ -83,7 +91,7 @@ def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df['Dia LIVE'] = ''
 
-    # Normalizar apertura a zona local
+    # Normalizar apertura
     df['Fecha / Hora'] = _localize_series(df['Fecha / Hora'])
 
     mask = df['Fecha / Hora de Cierre'].isna() & df['Fecha / Hora'].notna()
@@ -130,11 +138,12 @@ def calcular_tiempo_dr(df: pd.DataFrame) -> pd.DataFrame:
     Excluye fines de semana de forma vectorizada.
     """
     df = df.copy()
+    df['Tiempo D/R'] = ''
+
     mask = (
         (df['Deposito'].notna() | df['Retiro'].notna()) &
         df['Fecha / Hora de Cierre'].notna()
     )
-    df['Tiempo D/R'] = ''
     if not mask.any():
         return df
 
