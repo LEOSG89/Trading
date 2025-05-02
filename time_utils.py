@@ -37,16 +37,12 @@ def calcular_tiempo_operacion_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
     df['T. Op'] = ''
 
     # Normalizar timestamps de apertura y cierre
-    df['Fecha / Hora'] = _localize_series(df['Fecha / Hora'])
-    df['Fecha / Hora de Cierre'] = _localize_series(df['Fecha / Hora de Cierre'])
+    df['Fecha / Hora'] = _localize_series(df.get('Fecha / Hora', pd.Series(dtype='datetime64[ns]')))
+    df['Fecha / Hora de Cierre'] = _localize_series(df.get('Fecha / Hora de Cierre', pd.Series(dtype='datetime64[ns]')))
 
-        # Sólo filas con apertura y cierre válidos y sin depósitos/retiros
+    # Solo filas con apertura y cierre válidos y sin depósitos/retiros
     mask = (
-        df['Fecha / Hora de Cierre'].notna() &
         df['Fecha / Hora'].notna() &
-        df['Deposito'].isna() &
-        df['Retiro'].isna()
-    )
         df['Fecha / Hora de Cierre'].notna() &
         df['Deposito'].isna() &
         df['Retiro'].isna()
@@ -98,9 +94,9 @@ def calcular_dia_live(df: pd.DataFrame) -> pd.DataFrame:
     df['Dia LIVE'] = ''
 
     # Normalizar apertura
-    df['Fecha / Hora'] = _localize_series(df['Fecha / Hora'])
+    df['Fecha / Hora'] = _localize_series(df.get('Fecha / Hora', pd.Series(dtype='datetime64[ns]')))
 
-    mask = df['Fecha / Hora de Cierre'].isna() & df['Fecha / Hora'].notna()
+    mask = df['Fecha / Hora'].notna() & df['Fecha / Hora de Cierre'].isna()
     if not mask.any():
         return df
 
@@ -147,15 +143,14 @@ def calcular_tiempo_dr(df: pd.DataFrame) -> pd.DataFrame:
     df['Tiempo D/R'] = ''
 
     mask = (
-        (df['Deposito'].notna() | df['Retiro'].notna()) &
-        df['Fecha / Hora de Cierre'].notna()
-    )
+        df['Deposito'].notna() | df['Retiro'].notna()
+    ) & df['Fecha / Hora de Cierre'].notna()
     if not mask.any():
         return df
 
     # Normalizar timestamps
-    df['Fecha / Hora'] = _localize_series(df['Fecha / Hora'])
-    df['Fecha / Hora de Cierre'] = _localize_series(df['Fecha / Hora de Cierre'])
+    df['Fecha / Hora'] = _localize_series(df.get('Fecha / Hora', pd.Series(dtype='datetime64[ns]')))
+    df['Fecha / Hora de Cierre'] = _localize_series(df.get('Fecha / Hora de Cierre', pd.Series(dtype='datetime64[ns]')))
 
     delta = df.loc[mask, 'Fecha / Hora de Cierre'] - df.loc[mask, 'Fecha / Hora']
     total_sec = delta.dt.total_seconds()
@@ -188,5 +183,6 @@ def calcular_tiempo_dr(df: pd.DataFrame) -> pd.DataFrame:
         minutos.astype(str).str.zfill(2) + 'm'
     )
     return df
+
 
 
