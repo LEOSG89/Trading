@@ -58,38 +58,33 @@ import pandas as pd
 def procesar_deposito_retiro(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    # 1) Intentar parsear a numérico, dejando NaN donde no sea convertible
+    # 1) Parsear a numérico
     dep_num = pd.to_numeric(df['Deposito'], errors='coerce')
-    ret_num = pd.to_numeric(df['Retiro'],   errors='coerce')
+    ret_num = pd.to_numeric(df['Retiro'], errors='coerce')
 
-    # 2) Máscaras reales
+    # 2) Máscaras: detectar cualquier valor válido
     mask_dep = dep_num > 0
-    mask_ret = ret_num > 0
+    mask_ret = ret_num.notna()  # <-- acepta positivos o negativos
 
-    # 3) ASIGNAR Profit y Activo únicamente en esas filas
-    df.loc[mask_dep, 'Profit'] = dep_num[mask_dep]
+    # 3) Asignar Profit y Activo
+    df.loc[mask_dep, 'Profit'] =  dep_num[mask_dep]
     df.loc[mask_dep, 'Activo'] = 'DEP'
-    df.loc[mask_ret, 'Profit'] = -ret_num[mask_ret]
+    df.loc[mask_ret, 'Profit'] = -ret_num[mask_ret].abs()  # siempre negativo
     df.loc[mask_ret, 'Activo'] = 'RET'
 
-    # 4) RELLENAR Deposito/Retiro y quitar decimales sobrantes
-    #    Sólo en las filas donde corresponda
+    # 4) Limpieza y repoblado
     df['Deposito'] = pd.NA
-    df['Retiro']   = pd.NA
-
-    # convertir a int para eliminar .000000
+    df['Retiro'] = pd.NA
     df.loc[mask_dep, 'Deposito'] = dep_num[mask_dep].round(0).astype('Int64')
-    df.loc[mask_ret, 'Retiro']   = (-ret_num[mask_ret]).round(0).astype('Int64')
+    df.loc[mask_ret, 'Retiro'] = (-ret_num[mask_ret].abs()).round(0).astype('Int64')  # siempre negativo
 
-    # 5) Limpiar columnas auxiliares sólo en esas filas
+    # 5) Limpiar columnas auxiliares
     cols_limpieza = ['C&P', 'D', '#Cont', 'STRK Buy', 'STRK Sell']
     for col in cols_limpieza:
         if col in df.columns:
             df.loc[mask_dep | mask_ret, col] = pd.NA
 
     return df
-
-
 
 
 def agregar_iv_rank(df: pd.DataFrame, rank_str: str) -> pd.DataFrame:
