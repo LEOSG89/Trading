@@ -159,8 +159,14 @@ for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
             pass
 
 df = calcular_tiempo_operacion_vectorizado(df)
+
+# ► Generar columna Duracion para los comparativos que la necesitan
+if 'Fecha / Hora' in df.columns and 'Fecha / Hora de Cierre' in df.columns:
+    df['Duracion'] = df['Fecha / Hora de Cierre'] - df['Fecha / Hora']
+
 if '% Profit. Op' in df.columns and not pd.api.types.is_string_dtype(df['% Profit. Op']):
     df['% Profit. Op'] = df['% Profit. Op'].astype(str)
+
 
 df = calcular_dia_live(df)
 df = calcular_tiempo_dr(df)
