@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+import streamlit as st
+import pandas as pd
+import pandas.api.types as ptypes
 import os, json
 import config
 from copia_tabla import copiar_datos_a_tabla
