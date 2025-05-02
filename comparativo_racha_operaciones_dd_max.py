@@ -11,6 +11,10 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     # 2) Preparar DataFrame
     df = df.copy().reset_index(drop=True)
     df["Index"] = df.index
+    # Identificar depósitos y retiros
+    df['es_deposito'] = df['Deposito'].notna() & (df['Deposito'] != 0)
+    df['es_retiro']   = df['Retiro'].notna() & (df['Retiro'] != 0)
+
     df['dd_val'] = (
         df['DD/Max']
           .astype(str)
@@ -64,18 +68,34 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
 
     for run, grupo in df.groupby('run_id_dd'):
         signo = grupo['signo_dd'].iloc[0]
-        line_color = 'green' if signo>0 else 'red' if signo<0 else 'yellow'
-        # incluir punto anterior para continuidad
-        if grupo['Index'].iloc[0]>0:
-            prev = grupo['Index'].iloc[0]-1
+        line_color = 'green' if signo > 0 else 'red' if signo < 0 else 'yellow'
+
+        # Incluir punto anterior para continuidad
+        if grupo['Index'].iloc[0] > 0:
+            prev = grupo['Index'].iloc[0] - 1
             x_vals = [prev] + grupo['Index'].tolist()
-            y_vals = [df.loc[prev,'dd_val']] + grupo['dd_val'].tolist()
+            y_vals = [df.loc[prev, 'dd_val']] + grupo['dd_val'].tolist()
         else:
             x_vals = grupo['Index'].tolist()
             y_vals = grupo['dd_val'].tolist()
 
-        profits = df.loc[x_vals,'Profit']
-        marker_colors = ['green' if v>0 else 'red' if v<0 else 'yellow' for v in profits]
+        marker_colors = []
+        for i in x_vals:
+            deposito = df.loc[i, 'Deposito'] if 'Deposito' in df.columns else None
+            retiro   = df.loc[i, 'Retiro'] if 'Retiro' in df.columns else None
+
+            if pd.notna(deposito) and deposito != 0:
+                marker_colors.append('#3399FF')  # 🔵 Azul medio
+            elif pd.notna(retiro) and retiro != 0:
+                marker_colors.append('#FF69B4')  # 🌺 HotPink (rosado intenso)
+            else:
+                profit_val = df.loc[i, 'Profit']
+                if profit_val > 0:
+                    marker_colors.append('green')
+                elif profit_val < 0:
+                    marker_colors.append('red')
+                else:
+                    marker_colors.append('yellow')
 
         fig.add_trace(go.Scatter(
             x=x_vals, y=y_vals, mode="lines+markers",
@@ -83,6 +103,8 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
             marker=dict(color=marker_colors, size=12),
             showlegend=False
         ))
+
+
 
     fig.update_layout(
         xaxis_title="Índice de Operación",
