@@ -47,15 +47,35 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
       .reset_index(drop=True)
     )
 
-    if not resumen.empty:
-       resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
-    else:
-       resumen['Media_Ops'] = None
+        # … justo después de calcular resumen …
 
-       # PROTECCIÓN ANTES DE USAR nlargest
+    if not resumen.empty:
+        resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
+    else:
+        resumen['Media_Ops'] = None
+
+    # PROTECCIÓN ANTES DE USAR nlargest
     if not resumen.empty and 'Racha_Ops' in resumen.columns:
-       top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
-       top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
+        top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
+        top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
+    else:
+        cols = [
+            'run_id_dd', 'signo_dd', 'Racha_Ops',
+            'DD_Maximo_Drawdown', 'DD_Maximo_Drawup',
+            'Duracion', 'Media_Ops'
+        ]
+        top_pos = pd.DataFrame(columns=cols)
+        top_neg = pd.DataFrame(columns=cols)
+
+    # Creamos DataFrames vacíos con las columnas que luego se usan
+    cols = [
+        'run_id_dd', 'signo_dd', 'Racha_Ops',
+        'DD_Maximo_Drawdown', 'DD_Maximo_Drawup',
+        'Duracion', 'Media_Ops'
+    ]
+    top_pos = pd.DataFrame(columns=cols)
+    top_neg = pd.DataFrame(columns=cols)
+
     else:
       # Creamos DataFrames vacíos con las columnas que luego se usan
        cols = ['run_id_dd','signo_dd','Racha_Ops','DD_Maximo_Drawdown',
