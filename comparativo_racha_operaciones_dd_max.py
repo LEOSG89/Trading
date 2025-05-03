@@ -53,7 +53,7 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
        resumen['Media_Ops'] = None
 
 
-    resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
+    
     top_pos = resumen[resumen['signo_dd']==1].nlargest(5,'Racha_Ops')
     top_neg = resumen[resumen['signo_dd']==-1].nlargest(5,'Racha_Ops')
 
