@@ -233,9 +233,9 @@ with tab_vista:
     }
 
    if styled_df_vista is not None:
-    st.dataframe(styled_df_vista, width=st.session_state.w, height=st.session_state.h)
-else:
-    st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
+         st.dataframe(styled_df_vista, width=st.session_state.w, height=st.session_state.h)
+     else:
+         st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
 
 
 
