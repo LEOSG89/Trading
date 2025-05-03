@@ -232,7 +232,7 @@ with tab_vista:
             "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
     }
 
-   if styled_df_vista is not None:
+    if styled_df_vista is not None:
          st.dataframe(styled_df_vista, width=st.session_state.w, height=st.session_state.h)
      else:
          st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
