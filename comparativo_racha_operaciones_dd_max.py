@@ -30,24 +30,28 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
 
 # 3) Resumen de rachas DD/Max
-    resumen = (
-        df.groupby(['run_id_dd','signo_dd'], as_index=False)
-            .apply(lambda g: pd.Series({
-              'Racha_Ops': g.shape[0],
-              'DD_Maximo_Drawdown': g['dd_val'].min(),
-              'DD_Maximo_Drawup': g['dd_val'].max(),
-              'Duracion': (
-                 pd.to_timedelta(g['Fecha / Hora de Cierre'].iloc[-1] - g['Fecha / Hora'].iloc[0])
-                 if pd.notna(g['Fecha / Hora de Cierre'].iloc[-1]) and pd.notna(g['Fecha / Hora'].iloc[0])
-                 else pd.Timedelta(0)
+resumen = (
+    df.groupby(['run_id_dd', 'signo_dd'])
+      .apply(lambda g: pd.Series({
+          'run_id_dd': g['run_id_dd'].iloc[0],  # <- explícitamente incluimos
+          'signo_dd': g['signo_dd'].iloc[0],
+          'Racha_Ops': g.shape[0],
+          'DD_Maximo_Drawdown': g['dd_val'].min(),
+          'DD_Maximo_Drawup': g['dd_val'].max(),
+          'Duracion': (
+              pd.to_timedelta(g['Fecha / Hora de Cierre'].iloc[-1] - g['Fecha / Hora'].iloc[0])
+              if pd.notna(g['Fecha / Hora de Cierre'].iloc[-1]) and pd.notna(g['Fecha / Hora'].iloc[0])
+              else pd.Timedelta(0)
           )
       }))
       .reset_index(drop=True)
-    )
-    if not resumen.empty and 'signo_dd' in resumen.columns:
-        resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
-    else:
-        resumen['Media_Ops'] = None
+)
+
+if not resumen.empty:
+    resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
+else:
+    resumen['Media_Ops'] = None
+
 
     resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
     top_pos = resumen[resumen['signo_dd']==1].nlargest(5,'Racha_Ops')
