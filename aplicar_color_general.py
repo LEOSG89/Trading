@@ -125,7 +125,10 @@ def aplicar_color_general(df: pd.DataFrame):
               '#Cont':     '{:.0f}',
               'STRK Buy':  '{:.0f}',
               'STRK Sell': '{:.0f}',
-              'Profit':    '{:.0f}'
-          })
+              'Profit':    '{:.0f}',
+              'Deposito':  '{:.0f}',
+              'Retiro':    '{:.0f}'
+         })
+
     )
     return styled_df
