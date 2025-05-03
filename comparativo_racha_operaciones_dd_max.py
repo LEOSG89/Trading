@@ -44,6 +44,10 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
       }))
       .reset_index(drop=True)
     )
+    if not resumen.empty and 'signo_dd' in resumen.columns:
+        resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
+    else:
+        resumen['Media_Ops'] = None
 
     resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
     top_pos = resumen[resumen['signo_dd']==1].nlargest(5,'Racha_Ops')
