@@ -3,17 +3,23 @@ import pandas as pd
 import plotly.graph_objects as go
 
 def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") -> None:
+    # 0) Salida temprana si no hay datos
+    if df.empty:
+        st.warning("No hay datos disponibles para mostrar Racha Operaciones DD/Max.")
+        return
+
     # 1) Verificar columnas necesarias
-    if 'DD/Max' not in df.columns or 'Profit' not in df.columns:
-        st.warning("Faltan columnas necesarias ('DD/Max' o 'Profit').")
+    required = {'DD/Max', 'Profit'}
+    missing_cols = required - set(df.columns)
+    if missing_cols:
+        st.warning(f"Faltan columnas necesarias para el cálculo: {', '.join(missing_cols)}.")
         return
 
     # 2) Preparar DataFrame
     df = df.copy().reset_index(drop=True)
     df["Index"] = df.index
-    # Identificar depósitos y retiros
-    df['es_deposito'] = df['Deposito'].notna() & (df['Deposito'] != 0)
-    df['es_retiro']   = df['Retiro'].notna() & (df['Retiro'] != 0)
+    df['es_deposito'] = df.get('Deposito', 0).notna() & (df.get('Deposito', 0) != 0)
+    df['es_retiro']   = df.get('Retiro', 0).notna() & (df.get('Retiro', 0) != 0)
 
     df['dd_val'] = (
         df['DD/Max']
@@ -24,98 +30,54 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     )
     df['signo_dd'] = df['dd_val'].apply(lambda v: 1 if v>0 else -1 if v<0 else 0)
     df['run_id_dd'] = (df['signo_dd'] != df['signo_dd'].shift()).cumsum()
-    if 'Fecha / Hora' in df.columns:
-        df['Fecha / Hora'] = pd.to_datetime(df['Fecha / Hora'], errors='coerce')
-    if 'Fecha / Hora de Cierre' in df.columns:
-        df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
 
-         # 3) Resumen de rachas DD/Max
+    for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+
+    # 3) Resumen de rachas DD/Max
     resumen = (
-      df.groupby(['run_id_dd', 'signo_dd'])
-        .apply(lambda g: pd.Series({
-          'run_id_dd': g['run_id_dd'].iloc[0],  # <- explícitamente incluimos
-          'signo_dd': g['signo_dd'].iloc[0],
-          'Racha_Ops': g.shape[0],
-          'DD_Maximo_Drawdown': g['dd_val'].min(),
-          'DD_Maximo_Drawup': g['dd_val'].max(),
-          'Duracion': (
-              pd.to_timedelta(g['Fecha / Hora de Cierre'].iloc[-1] - g['Fecha / Hora'].iloc[0])
-              if pd.notna(g['Fecha / Hora de Cierre'].iloc[-1]) and pd.notna(g['Fecha / Hora'].iloc[0])
-              else pd.Timedelta(0)
-          )
-      }))
-      .reset_index(drop=True)
+        df.groupby(['run_id_dd', 'signo_dd'])
+          .apply(lambda g: pd.Series({
+              'run_id_dd': g['run_id_dd'].iloc[0],
+              'signo_dd': g['signo_dd'].iloc[0],
+              'Racha_Ops': g.shape[0],
+              'DD_Maximo_Drawdown': g['dd_val'].min(),
+              'DD_Maximo_Drawup':    g['dd_val'].max(),
+              'Duracion': (
+                  pd.to_timedelta(
+                      g['Fecha / Hora de Cierre'].iloc[-1] 
+                      - g['Fecha / Hora'].iloc[0]
+                  ) if pd.notna(g['Fecha / Hora de Cierre'].iloc[-1]) 
+                        and pd.notna(g['Fecha / Hora'].iloc[0])
+                  else pd.Timedelta(0)
+              )
+          }))
+          .reset_index(drop=True)
     )
 
-        # … justo después de calcular resumen …
-
-    if not resumen.empty:
-        resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
-    else:
+    # 3.1) Calcular Media_Ops con seguridad
+    if resumen.empty:
         resumen['Media_Ops'] = None
-
-          # PROTECCIÓN ANTES DE USAR nlargest
-    if not resumen.empty and 'Racha_Ops' in resumen.columns:
-        top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
-        top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
     else:
-        cols = [
-            'run_id_dd', 'signo_dd', 'Racha_Ops',
-            'DD_Maximo_Drawdown', 'DD_Maximo_Drawup',
-            'Duracion', 'Media_Ops'
-        ]
-        top_pos = pd.DataFrame(columns=cols)
-        top_neg = pd.DataFrame(columns=cols)
+        try:
+            resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
+        except KeyError as e:
+            st.warning(f"No se pudo calcular la media de operaciones: {e}")
+            resumen['Media_Ops'] = None
 
-    # Creamos DataFrames vacíos con las columnas que luego se usan
-    cols = [
-        'run_id_dd', 'signo_dd', 'Racha_Ops',
-        'DD_Maximo_Drawdown', 'DD_Maximo_Drawup',
-        'Duracion', 'Media_Ops'
-    ]
-    top_pos = pd.DataFrame(columns=cols)
-    top_neg = pd.DataFrame(columns=cols)
+    top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
+    top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
 
-    else:
-      # Creamos DataFrames vacíos con las columnas que luego se usan
-       cols = ['run_id_dd','signo_dd','Racha_Ops','DD_Maximo_Drawdown',
-               'DD_Maximo_Drawup','Duracion','Media_Ops']
-       top_pos = pd.DataFrame(columns=cols)
-       top_neg = pd.DataFrame(columns=cols)
-
-    
-    top_pos = resumen[resumen['signo_dd']==1].nlargest(5,'Racha_Ops')
-    top_neg = resumen[resumen['signo_dd']==-1].nlargest(5,'Racha_Ops')    # … justo después de asignar Media_Ops …
-    if not resumen.empty:
-        resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
-    else:
-        resumen['Media_Ops'] = None
-
-    # PROTECCIÓN ANTES DE USAR nlargest
-    if not resumen.empty and 'Racha_Ops' in resumen.columns:
-        top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
-        top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
-    else:
-        # Creamos DataFrames vacíos con las columnas que luego se usan
-        cols = [
-            'run_id_dd', 'signo_dd', 'Racha_Ops',
-            'DD_Maximo_Drawdown', 'DD_Maximo_Drawup',
-            'Duracion', 'Media_Ops'
-        ]
-        top_pos = pd.DataFrame(columns=cols)
-        top_neg = pd.DataFrame(columns=cols)
-
-    # … aquí sigue el resto de la función …
-
-
-    # 4) Checkbox para mostrar/ocultar tablas (encima del gráfico)
+    # 4) Checkbox para mostrar/ocultar tablas
     mostrar_tablas = st.checkbox("Mostrar tablas de rachas", value=True, key=f"{chart_key}_tbl_chk")
 
-    # 5) Construir gráfico
+    # 5) Construir gráfico de rachas
     shapes = []
+    destacados = set(top_pos['run_id_dd']).union(top_neg['run_id_dd'])
     for run, grupo in df.groupby('run_id_dd'):
-        if run in set(top_pos['run_id_dd']).union(top_neg['run_id_dd']):
-            color = 'green' if grupo['signo_dd'].iloc[0]>0 else 'red'
+        if run in destacados:
+            color = 'green' if grupo['signo_dd'].iloc[0] > 0 else 'red'
             shapes.append(dict(
                 type='rect', xref='x', yref='paper',
                 x0=grupo['Index'].min(), x1=grupo['Index'].max(),
@@ -129,7 +91,7 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         signo = grupo['signo_dd'].iloc[0]
         line_color = 'green' if signo > 0 else 'red' if signo < 0 else 'yellow'
 
-        # Incluir punto anterior para continuidad
+        # Trazo continuado
         if grupo['Index'].iloc[0] > 0:
             prev = grupo['Index'].iloc[0] - 1
             x_vals = [prev] + grupo['Index'].tolist()
@@ -139,22 +101,16 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
             y_vals = grupo['dd_val'].tolist()
 
         marker_colors = []
-        for i in x_vals:
-            deposito = df.loc[i, 'Deposito'] if 'Deposito' in df.columns else None
-            retiro   = df.loc[i, 'Retiro'] if 'Retiro' in df.columns else None
-
-            if pd.notna(deposito) and deposito != 0:
-                marker_colors.append('#3399FF')  # 🔵 Azul medio
-            elif pd.notna(retiro) and retiro != 0:
-                marker_colors.append('#FF69B4')  # 🌺 HotPink (rosado intenso)
+        for idx in x_vals:
+            dep  = df.at[idx, 'Deposito'] if 'Deposito' in df.columns else None
+            ret  = df.at[idx, 'Retiro']   if 'Retiro' in df.columns else None
+            if pd.notna(dep) and dep != 0:
+                marker_colors.append('#3399FF')
+            elif pd.notna(ret) and ret != 0:
+                marker_colors.append('#FF69B4')
             else:
-                profit_val = df.loc[i, 'Profit']
-                if profit_val > 0:
-                    marker_colors.append('green')
-                elif profit_val < 0:
-                    marker_colors.append('red')
-                else:
-                    marker_colors.append('yellow')
+                p = df.at[idx, 'Profit']
+                marker_colors.append('green' if p>0 else 'red' if p<0 else 'yellow')
 
         fig.add_trace(go.Scatter(
             x=x_vals, y=y_vals, mode="lines+markers",
@@ -162,8 +118,6 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
             marker=dict(color=marker_colors, size=12),
             showlegend=False
         ))
-
-
 
     fig.update_layout(
         xaxis_title="Índice de Operación",
@@ -173,26 +127,19 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     )
     st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
-    # 6) Si no quiere ver tablas, terminamos aquí
     if not mostrar_tablas:
         return
 
-    # 7) Formateadores
+    # 6) Formateadores para tablas
     def fmt_pct(v): return f"{v:.2f}%"
     def fmt_td(td):
-       if pd.isna(td):
-        return "NaT"
-       try:
-          days = int(td.days)
-          secs = int(td.seconds)
-          hrs = secs // 3600
-          mins = (secs % 3600) // 60
-          return f"{days}d {hrs:02d}h {mins:02d}m" if days else f"{hrs:02d}h {mins:02d}m"
-       except Exception:
-        return str(td)
+        if pd.isna(td): return "NaT"
+        days, secs = td.days, td.seconds
+        hrs = secs // 3600
+        mins = (secs % 3600) // 60
+        return f"{days}d {hrs:02d}h {mins:02d}m" if days else f"{hrs:02d}h {mins:02d}m"
 
-
-    # 8) Preparar DataFrames de tablas
+    # 7) Preparar tablas top
     df_pos = top_pos[['Racha_Ops','DD_Maximo_Drawdown','DD_Maximo_Drawup','Duracion','Media_Ops']].copy()
     df_neg = top_neg[['Racha_Ops','DD_Maximo_Drawdown','DD_Maximo_Drawup','Duracion','Media_Ops']].copy()
 
@@ -200,7 +147,7 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         d['DD_Maximo_Drawdown'] = d['DD_Maximo_Drawdown'].map(fmt_pct)
         d['DD_Maximo_Drawup']   = d['DD_Maximo_Drawup'].map(fmt_pct)
         d['Duracion']           = d['Duracion'].map(fmt_td)
-        d['Media_Ops']          = d['Media_Ops'].map(lambda v: f"{v:.2f}")
+        d['Media_Ops']          = d['Media_Ops'].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
 
     df_pos.rename(columns={
         'Racha_Ops':'Racha D.up',
@@ -215,32 +162,24 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         'Media_Ops':'Media Ops dw'
     }, inplace=True)
 
-    # 9) Añadir rachas de Profit y asegurar longitud correcta
+    # 8) Añadir rachas de Profit
     df_pf = df.copy()
-    df_pf['signo_pf'] = df_pf['Profit'].apply(lambda v:1 if v>0 else -1 if v<0 else 0)
+    df_pf['signo_pf'] = df_pf['Profit'].apply(lambda v: 1 if v>0 else -1 if v<0 else 0)
     df_pf['run_id_pf'] = (df_pf['signo_pf'] != df_pf['signo_pf'].shift()).cumsum()
     resumen_pf = df_pf.groupby(['run_id_pf','signo_pf'], as_index=False).agg(Racha_Profit=('Index','count'))
     up = resumen_pf[resumen_pf['signo_pf']==1].nlargest(5,'Racha_Profit')['Racha_Profit'].tolist()
     dw = resumen_pf[resumen_pf['signo_pf']==-1].nlargest(5,'Racha_Profit')['Racha_Profit'].tolist()
 
-    n_pos = len(df_pos)
-    n_neg = len(df_neg)
-    up_vals = up[:n_pos]
-    dw_vals = dw[:n_neg]
-    df_pos['Racha Positiva'] = up_vals + [None]*(n_pos - len(up_vals))
-    df_neg['Racha Negativa'] = dw_vals + [None]*(n_neg - len(dw_vals))
+    n_pos, n_neg = len(df_pos), len(df_neg)
+    df_pos['Racha Positiva'] = up[:n_pos] + [None]*(n_pos - len(up))
+    df_neg['Racha Negativa'] = dw[:n_neg] + [None]*(n_neg - len(dw))
 
-    # 10) Mostrar tablas en pestañas con color en celdas
+    # 9) Mostrar tablas en pestañas
     tab1, tab2 = st.tabs(["Top 5 Positivas","Top 5 Negativas"])
     with tab1:
-        sty_pos = df_pos.style.applymap(
-            lambda v: 'color: green;',
-            subset=['Racha Positiva','Maximo Drawup']
-        )
+        sty_pos = df_pos.style.applymap(lambda _: 'color: green;', subset=['Racha Positiva','Maximo Drawup'])
         st.dataframe(sty_pos, use_container_width=True)
     with tab2:
-        sty_neg = df_neg.style.applymap(
-            lambda v: 'color: red;',
-            subset=['Racha Negativa','Maximo Drawdown']
-        )
+        sty_neg = df_neg.style.applymap(lambda _: 'color: red;', subset=['Racha Negativa','Maximo Drawdown'])
         st.dataframe(sty_neg, use_container_width=True)
+
