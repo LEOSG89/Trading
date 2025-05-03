@@ -30,9 +30,9 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
 
 # 3) Resumen de rachas DD/Max
-resumen = (
-    df.groupby(['run_id_dd', 'signo_dd'])
-      .apply(lambda g: pd.Series({
+    resumen = (
+      df.groupby(['run_id_dd', 'signo_dd'])
+        .apply(lambda g: pd.Series({
           'run_id_dd': g['run_id_dd'].iloc[0],  # <- explícitamente incluimos
           'signo_dd': g['signo_dd'].iloc[0],
           'Racha_Ops': g.shape[0],
@@ -45,12 +45,12 @@ resumen = (
           )
       }))
       .reset_index(drop=True)
-)
+    )
 
-if not resumen.empty:
-    resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
-else:
-    resumen['Media_Ops'] = None
+    if not resumen.empty:
+       resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
+    else:
+       resumen['Media_Ops'] = None
 
 
     resumen['Media_Ops'] = resumen.groupby('signo_dd')['Racha_Ops'].transform('mean')
