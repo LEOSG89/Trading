@@ -29,7 +29,7 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     if 'Fecha / Hora de Cierre' in df.columns:
         df['Fecha / Hora de Cierre'] = pd.to_datetime(df['Fecha / Hora de Cierre'], errors='coerce')
 
-# 3) Resumen de rachas DD/Max
+         # 3) Resumen de rachas DD/Max
     resumen = (
       df.groupby(['run_id_dd', 'signo_dd'])
         .apply(lambda g: pd.Series({
@@ -54,7 +54,7 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     else:
         resumen['Media_Ops'] = None
 
-    # PROTECCIÓN ANTES DE USAR nlargest
+          # PROTECCIÓN ANTES DE USAR nlargest
     if not resumen.empty and 'Racha_Ops' in resumen.columns:
         top_pos = resumen[resumen['signo_dd'] == 1].nlargest(5, 'Racha_Ops')
         top_neg = resumen[resumen['signo_dd'] == -1].nlargest(5, 'Racha_Ops')
