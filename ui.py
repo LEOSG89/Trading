@@ -232,10 +232,18 @@ with tab_vista:
             "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
     }
 
-    if styled_df_vista is not None:
-        st.dataframe(styled_df_vista, width=st.session_state.w, height=st.session_state.h)
-    else:
-        st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
+    # Aplicar formato visual para evitar decimales largos
+df_formateado = df_vista.style.format({
+    'Deposito': "{:,.0f}",
+    'Retiro': "{:,.0f}",
+    'Profit': "{:,.0f}"
+})
+
+if styled_df_vista is not None:
+    st.dataframe(df_formateado, width=st.session_state.w, height=st.session_state.h)
+else:
+    st.dataframe(df_formateado, width=st.session_state.w, height=st.session_state.h)
+
 
     secciones = [("", "rango_col1", "rango_col2"), (" Secundarios", "rango_col3", "rango_col4")]
 for seccion, rango1, rango2 in secciones:
