@@ -30,6 +30,7 @@ from tabla_ganancia_contratos_calculos import tabla_ganancia_contratos_calculos
 from comparativo_histograma_profit_call_put import histograma_profit_call_put
 from comparativo_racha_operaciones_dd_max import comparativo_racha_dd_max
 from comparativo_mapa_calor_tiempo import mostrar_heatmaps_dia_hora
+from comparativo_calendario import mostrar_calendario
 from calculos_tabla_principal import (
     calcular_profit_operacion, calcular_porcentaje_profit_op, calcular_profit_total,
     calcular_dd_max, calcular_dd_up, calcular_profit_t, calcular_profit_alcanzado_vectorizado,
@@ -230,6 +231,7 @@ with tab_vista:
             "Histograma Profit CALL/PUT": histograma_profit_call_put,
             "Racha Operaciones DD/Max": comparativo_racha_dd_max,
             "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
+            "Calendario": mostrar_calendario,
     }
 
     if styled_df_vista is not None:
