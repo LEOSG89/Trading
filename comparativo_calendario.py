@@ -27,7 +27,7 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
         except:
             saved = {}
 
-    # 3) UI de filtros en pestañas: Año, Todos los años, Mes, Activo, Tipo Op
+    # 3) UI de filtros en pestañas: Años, Todos los años, Mes, Activo, Tipo Op
     tab_anyo, tab_anyo_all, tab_mes, tab_activo, tab_tipo = st.tabs(
         ["Años", "Todos los años", "Mes", "Activo", "Tipo Op"]
     )
@@ -66,7 +66,7 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
                ))
         )
 
-    # — Pestaña “Mes”: selector de mes basado en año seleccionado —
+    # — Pestaña “Mes”: selector de mes según el año —
     with tab_mes:
         sel_year = st.session_state.get(f"{chart_key}_year", years[-1])
         months = sorted(
@@ -111,7 +111,7 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
             "tipo":  st.session_state[f"{chart_key}_tipo"]
         }, f)
 
-    # 5) Aplicar filtrado
+    # 5) Aplicar filtros para el mes actual
     year  = st.session_state[f"{chart_key}_year"]
     month = st.session_state[f"{chart_key}_month"]
     asset = st.session_state[f"{chart_key}_asset"]
@@ -126,7 +126,7 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
         mask &= (df['C&P'].str.upper() == tipo)
     mdf = df[mask]
 
-    # Métricas diarias
+    # Métricas diarias (para el calendario)
     daily = (
         mdf.groupby('Fecha')
            .agg(profit=('Profit','sum'), trades=('Profit','size'))
@@ -136,14 +136,13 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
     daily['pct'] = daily['profit'].pct_change().mul(100).round(1).fillna(0)
     info = {row['Fecha']: row for _, row in daily.iterrows()}
 
-    # Matriz mensual
+    # Matriz del mes
     cal = calendar.Calendar(firstweekday=6)
     matrix = cal.monthdayscalendar(year, month)
     n_weeks = len(matrix)
 
-    # Crear figura base
+    # Gráfico de calendario
     fig = go.Figure()
-    # Dibujar cuadrícula
     for wi in range(n_weeks):
         for di in range(7):
             fig.add_shape(
@@ -154,14 +153,10 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
             )
-
-    # Anotaciones dentro de celdas
-    base_font = 12
-    yoff = 0.5
+    base_font = 12; yoff = 0.5
     for wi, week in enumerate(matrix):
         for di, d in enumerate(week):
-            if d == 0:
-                continue
+            if d == 0: continue
             date = pd.to_datetime(f"{year}-{month:02d}-{d:02d}").date()
             wd = weekday_names[di]
             row = info.get(date)
@@ -169,52 +164,56 @@ def mostrar_calendario(df: pd.DataFrame, chart_key: str = "calendario"):
                 txt = f"{wd} {d}<br>${row['profit']:,.0f}<br>{int(row['trades'])} ops<br>{row['pct']:+.1f}%"
                 color = "green" if row['profit'] > 0 else ("red" if row['profit'] < 0 else "yellow")
             else:
-                txt = f"{wd} {d}"
-                color = "#888"
+                txt = f"{wd} {d}"; color = "#888"
             fig.add_annotation(
-                x=di,
-                y=wi + yoff,
-                text=txt,
-                showarrow=False,
+                x=di, y=wi + yoff,
+                text=txt, showarrow=False,
                 font=dict(size=base_font, color=color),
-                align="center",
-                yanchor="middle"
+                align="center", yanchor="middle"
             )
-
-    # Ejes
     fig.update_xaxes(
         range=[-0.5, 6.5],
-        tickmode="array",
-        tickvals=list(range(7)),
-        ticktext=weekday_names,
-        side="top",
-        showgrid=False,
-        zeroline=False,
-        showticklabels=True,
-        tickfont=dict(size=12),
+        tickmode="array", tickvals=list(range(7)),
+        ticktext=weekday_names, side="top",
+        showgrid=False, zeroline=False,
+        showticklabels=True, tickfont=dict(size=12),
         ticklabelposition="outside top"
     )
     fig.update_yaxes(
         range=[n_weeks, 0],
         scaleanchor="x",
-        showgrid=False,
-        zeroline=False,
+        showgrid=False, zeroline=False,
         showticklabels=False
     )
-
-    # Layout y despliegue
-    height = n_weeks * 100 + 100
     fig.update_layout(
-        height=height,
+        height=n_weeks*100 + 100,
         margin=dict(l=20, r=20, t=20, b=20),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)"
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    # Resumen mensual
+    # 6) Resumen mensual con % incremento vs mes anterior
+    # --- calculamos P&L actual ---
+    cur_profit = mdf['Profit'].sum()
+    # --- filtramos mes anterior ---
+    prev_year  = year if month > 1 else year - 1
+    prev_month = month - 1 if month > 1 else 12
+    mask_prev = (
+        (df['Fecha'].apply(lambda d: d.year)  == prev_year) &
+        (df['Fecha'].apply(lambda d: d.month) == prev_month) &
+        (df['Activo'] == asset)
+    )
+    if tipo != "Ambas":
+        mask_prev &= (df['C&P'].str.upper() == tipo)
+    prev_profit = df[mask_prev]['Profit'].sum()
+    # --- evitamos división por cero ---
+    if prev_profit != 0:
+        inc = (cur_profit - prev_profit) / abs(prev_profit) * 100
+    else:
+        inc = 0.0
+
     c1, c2, c3 = st.columns(3)
-    c1.metric("P&L Mes",      f"${mdf['Profit'].sum():,.2f}")
-    c2.metric("Trades Mes",   len(mdf))
-    wr = (mdf['Profit'] > 0).sum() / len(mdf) * 100 if len(mdf) > 0 else 0
-    c3.metric("Win Rate",     f"{wr:.1f}%")
+    c1.metric("P&L Mes",    f"${cur_profit:,.2f}")
+    c2.metric("Trades Mes", len(mdf))
+    c3.metric("Win Rate",   f"{inc:+.1f}%")  # ahora muestra % de incremento vs mes pasado
