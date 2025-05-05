@@ -40,7 +40,6 @@ from subir_archivo import subir_archivo
 from eliminar_columnas_duplicadas_contador import limpiar_columnas
 from tabla_editable_eliminar_renombrar_limpiar_columnas import tabla_editable_eliminar_renombrar_limpiar_columnas
 
-
 SELECT_FILE = 'selected_asset.json'
 
 st.set_page_config(page_title="Hoja de Trading", page_icon="📈", layout="wide")
@@ -82,7 +81,6 @@ init_session()
 if 'pintar_colores' not in st.session_state:
     st.session_state.pintar_colores = False
 
-
 with st.sidebar.expander("Cargar y Ajustes", expanded=True):
     subir_archivo()
     st.slider("Alto Vista", 200, 1200, st.session_state.h, key='h')
@@ -93,12 +91,9 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
 
     for i, tab in enumerate([tab1, tab2, tab3, tab4], start=1):
         with tab:
-            # Número real de filas y último índice
             rows = len(st.session_state.datos)
             max_idx = rows - 1
-
             if max_idx > 0:
-                # Preset y cálculo de filas por defecto
                 preset = st.radio(
                     "Preset", [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 'ALL'],
                     index=1, horizontal=True,
@@ -107,8 +102,6 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
                 filas_default = max_idx if preset == 'ALL' else min(int(preset), max_idx)
                 start = max(0, max_idx - filas_default)
                 end   = max_idx
-
-                # Slider sólo si max_idx > 0
                 rango_slider = st.slider(
                     f"Rango de filas Gráfico Columna {i}",
                     min_value=0,
@@ -118,16 +111,12 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
                 )
             else:
                 st.info("No hay suficientes filas para seleccionar un rango.")
-                # Forzamos un rango válido (0,0) cuando no hay suficientes filas
                 rango_slider = (0, max_idx if max_idx >= 0 else 0)
 
-            # Guardar y mostrar leyenda
             st.session_state[f"rango_col{i}"] = rango_slider
             st.caption(
-                f"Mostrando filas desde **{rango_slider[0]}** "
-                f"hasta **{rango_slider[1]}** de **{max_idx if max_idx>=0 else 0}** filas."
+                f"Mostrando filas desde **{rango_slider[0]}** hasta **{rango_slider[1]}** de **{max_idx if max_idx>=0 else 0}** filas."
             )
-
 
     sel = st.selectbox(
         "Selecciona Activo",
@@ -137,7 +126,6 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
     )
     st.number_input("Valor (solo DEP/RET)", value=0.0, key='input_valor')
 
-    # Llamada al módulo de edición en pestañas
     st.session_state.datos = tabla_editable_eliminar_renombrar_limpiar_columnas(
         st.session_state.datos
     )
@@ -145,7 +133,7 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
     with open(config.TABLE_FILE, 'w') as f:
         json.dump({'height': st.session_state.h, 'width': st.session_state.w}, f)
     with open(SELECT_FILE, 'w') as f:
-     json.dump(sel, f)
+        json.dump(sel, f)
 
 df = st.session_state.datos.copy()
 df = limpiar_columnas(df)
@@ -157,7 +145,6 @@ for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
 df = calcular_tiempo_operacion_vectorizado(df)
 if '% Profit. Op' in df.columns and not pd.api.types.is_string_dtype(df['% Profit. Op']):
     df['% Profit. Op'] = df['% Profit. Op'].astype(str)
-
 df = calcular_dia_live(df)
 df = calcular_tiempo_dr(df)
 df = calcular_profit_operacion(df)
@@ -179,31 +166,23 @@ render_tabla_capital(df)
 mostrar_sidebar_inversion(df)
 render_esperanza_matematica(df)
 
-# ► Aquí inserto el expander en la barra lateral
 with st.sidebar.expander("Ganancia por Contratos", expanded=True):
     tabla_ganancia_contratos_calculos()
 
-# Expander: Modo de entrenamiento
 with st.expander("Modo de entrenamiento", expanded=False):
     if 'pintar_colores' not in st.session_state:
         st.session_state.pintar_colores = True
-
-    # Ahora sí: Actualiza el valor de pintar_colores
     st.session_state.pintar_colores = st.checkbox(
-        "Aplicar colores en la tabla", 
+        "Aplicar colores en la tabla",
         value=st.session_state.pintar_colores
     )
-
     crear_botones_trading()
     crear_botones_iv_rank()
 
-
-# ➡️ Revisar si hay que desactivar colores
 if st.session_state.get('pintar_colores_disable_pending', False):
     st.session_state.pintar_colores = False
     st.session_state.pintar_colores_disable_pending = False
 
-# Tabs principales: Vista y Edición
 tab_vista, tab_edicion = st.tabs(["Vista", "Edición"])
 
 with tab_vista:
@@ -212,72 +191,92 @@ with tab_vista:
         df_vista = df_vista.drop(columns=['Contador'])
     styled_df_vista = aplicar_color_general(df_vista)
 
-
+    if styled_df_vista is not None:
+        st.dataframe(styled_df_vista, width=st.session_state.w, height=st.session_state.h)
+    else:
+        st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
 
     opciones_graficos = {
-           "Barras": mostrar_profit_interactivo,
-           "Líneas": mostrar_profit_trend_interactivo,
-           "DD/Max": mostrar_dd_max,
-           "Área": mostrar_profit_area,
-           "Puntos": mostrar_profit_puntos,
-           "Tiempo": mostrar_tiempo_puntos,
-           "CALL vs PUT Línea": comparativo_call_put_linea,
-           "CALL Barras": comparativo_call_barra,
-           "PUT Barras": comparativo_put_barra,
-           "Días Línea": comparativo_dias_linea,
-           "CALL/PUT por Día (Apilado)": comparativo_trade_diario_apilado,
-           "Profit por Día de Semana": comparativo_profit_dia_semana,
-           "Porcentaje Aciertos CALL PUT (Dona)": comparativo_dona_call_put,
-            "Histograma Profit CALL/PUT": histograma_profit_call_put,
-            "Racha Operaciones DD/Max": comparativo_racha_dd_max,
-            "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
-            "Calendario": mostrar_calendario,
+        "Barras": mostrar_profit_interactivo,
+        "Líneas": mostrar_profit_trend_interactivo,
+        "DD/Max": mostrar_dd_max,
+        "Área": mostrar_profit_area,
+        "Puntos": mostrar_profit_puntos,
+        "Tiempo": mostrar_tiempo_puntos,
+        "CALL vs PUT Línea": comparativo_call_put_linea,
+        "CALL Barras": comparativo_call_barra,
+        "PUT Barras": comparativo_put_barra,
+        "Días Línea": comparativo_dias_linea,
+        "CALL/PUT por Día (Apilado)": comparativo_trade_diario_apilado,
+        "Profit por Día de Semana": comparativo_profit_dia_semana,
+        "Porcentaje Aciertos CALL PUT (Dona)": comparativo_dona_call_put,
+        "Histograma Profit CALL/PUT": histograma_profit_call_put,
+        "Racha Operaciones DD/Max": comparativo_racha_dd_max,
+        "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
+        "Calendario": mostrar_calendario,
     }
 
-    if styled_df_vista is not None:
-         st.dataframe(styled_df_vista, width=st.session_state.w, height=st.session_state.h)
-    else:
-         st.dataframe(df_vista, width=st.session_state.w, height=st.session_state.h)
+    secciones = [
+        ("", "rango_col1", "rango_col2"),
+        (" Secundarios", "rango_col3", "rango_col4")
+    ]
+    for seccion, rango1, rango2 in secciones:
+        expanded = True if seccion == "" else False
+        with st.expander(f"Gráficos Comparativos{seccion}", expanded=expanded):
+            select_col1, select_col2 = st.columns(2, gap="medium")
 
+            with select_col1:
+                grafico_col1 = st.selectbox(
+                    f"Gráfico Columna 1{seccion}",
+                    list(opciones_graficos.keys()),
+                    index=list(opciones_graficos.keys()).index(
+                        "Racha Operaciones DD/Max" if seccion == "" else "Porcentaje Aciertos CALL PUT (Dona)"
+                    ),
+                    key=f"grafico_1{seccion}"
+                )
 
+            with select_col2:
+                grafico_col2 = st.selectbox(
+                    f"Gráfico Columna 2{seccion}",
+                    list(opciones_graficos.keys()),
+                    index=list(opciones_graficos.keys()).index(
+                        "CALL vs PUT Línea" if seccion == "" else "DD/Max"
+                    ),
+                    key=f"grafico_2{seccion}"
+                )
 
-    secciones = [("", "rango_col1", "rango_col2"), (" Secundarios", "rango_col3", "rango_col4")]
-for seccion, rango1, rango2 in secciones:
-    expanded = True if seccion == "" else False
-    with st.expander(f"Gráficos Comparativos{seccion}", expanded=expanded):
-        select_col1, select_col2 = st.columns(2, gap="medium")
+            # COLUMNAS DE GRÁFICOS CORREGIDAS
+            col1, col2 = st.columns(2, gap="small")
 
-        with select_col1:
-            grafico_col1 = st.selectbox(
-                f"Gráfico Columna 1{seccion}",
-                list(opciones_graficos.keys()),
-                index=list(opciones_graficos.keys()).index(
-                    "Racha Operaciones DD/Max" if seccion == "" else "Porcentaje Aciertos CALL PUT (Dona)"
-                ),
-                key=f"grafico_1{seccion}"
-            )
+            with col1:
+                if grafico_col1 == "Calendario":
+                    mostrar_calendario(
+                        df,
+                        chart_key=f"chart_1_{grafico_col1}{seccion}"
+                    )
+                else:
+                    opciones_graficos[grafico_col1](
+                        df.iloc[
+                            st.session_state[rango1][0]
+                            :st.session_state[rango1][1] + 1
+                        ],
+                        chart_key=f"chart_1_{grafico_col1}{seccion}"
+                    )
 
-        with select_col2:
-            grafico_col2 = st.selectbox(
-                f"Gráfico Columna 2{seccion}",
-                list(opciones_graficos.keys()),
-                index=list(opciones_graficos.keys()).index(
-                    "CALL vs PUT Línea" if seccion == "" else "DD/Max"
-                ),
-                key=f"grafico_2{seccion}"
-            )
-
-        col1, col2 = st.columns(2, gap="small")
-        with col1:
-            opciones_graficos[grafico_col1](
-                df.iloc[st.session_state[rango1][0]:st.session_state[rango1][1]+1],
-                chart_key=f"chart_1_{grafico_col1}{seccion}"
-            )
-        with col2:
-            opciones_graficos[grafico_col2](
-                df.iloc[st.session_state[rango2][0]:st.session_state[rango2][1]+1],
-                chart_key=f"chart_2_{grafico_col2}{seccion}"
-            )
+            with col2:
+                if grafico_col2 == "Calendario":
+                    mostrar_calendario(
+                        df,
+                        chart_key=f"chart_2_{grafico_col2}{seccion}"
+                    )
+                else:
+                    opciones_graficos[grafico_col2](
+                        df.iloc[
+                            st.session_state[rango2][0]
+                            :st.session_state[rango2][1] + 1
+                        ],
+                        chart_key=f"chart_2_{grafico_col2}{seccion}"
+                    )
 
 with tab_edicion:
     df_ed = df.reset_index(drop=True).copy()
@@ -305,7 +304,14 @@ with tab_edicion:
         else:
             col_config[col] = st.column_config.TextColumn(col)
 
-    edited = st.data_editor(df_ed, column_config=col_config, hide_index=True, width=st.session_state.w, height=st.session_state.h, num_rows="dynamic")
+    edited = st.data_editor(
+        df_ed,
+        column_config=col_config,
+        hide_index=True,
+        width=st.session_state.w,
+        height=st.session_state.h,
+        num_rows="dynamic"
+    )
     filtered = edited[edited['Eliminar'] == False]
     filtered = filtered.drop(columns=['Contador', 'Eliminar']).reset_index(drop=True)
-    st.session_state.datos = filtered 
+    st.session_state.datos = filtered
