@@ -164,7 +164,7 @@ def calculate_daily(df: pd.DataFrame, year:int, month:int, asset:str, tipo:str) 
     return daily, cap_start
 
 
-def render_calendar(daily: pd.DataFrame, year:int, month:int) -> None:
+def render_calendar(daily: pd.DataFrame, year:int, month:int, chart_key: str) -> None:
     info = daily.set_index('Fecha')[['profit','trades','pct']].to_dict('index')
     matrix = calendar.Calendar(firstweekday=6).monthdayscalendar(year, month)
     n_weeks = len(matrix)
@@ -191,7 +191,7 @@ def render_calendar(daily: pd.DataFrame, year:int, month:int) -> None:
     fig.update_yaxes(range=[n_weeks,0], showgrid=False, zeroline=False, showticklabels=False)
     fig.update_layout(height=n_weeks*100+100, margin=dict(l=20,r=20,t=20,b=20),
                       plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar':False})
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar':False}, key=f"{chart_key}_calendar")
 
 
 def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None:
@@ -241,7 +241,7 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None
         tipo = st.selectbox("Tipo Op", tps, index=tidx, key=f"{chart_key}_tipo")
     save_filters(chart_key, {'year':year,'month':month,'asset':asset,'tipo':tipo})
     daily_df, cap_start = calculate_daily(df, year, month, asset, tipo)
-    render_calendar(daily_df, year, month)
+    render_calendar(daily_df, year, month, chart_key)
     profit_mes = daily_df['profit'].sum()
     trades_mes = int(daily_df['trades'].sum())
     pct_mes = (summary_monthly[(summary_monthly['Año']==year)&(summary_monthly['MesNum']==month)]['% Var'].iloc[0]
