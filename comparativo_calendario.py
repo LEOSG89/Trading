@@ -261,7 +261,7 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> No
         c6.metric('Incremento Año', f"{row['% Var']:+.1f}%")
 
     with tabs[4]:
-        
+        st.header("Tabla Resumen Anual (incluye depósito inicial)")
         if summary_annual is not None:
             ta = summary_annual.copy()
             ta['Depósitos'] += base_amount or 0
@@ -269,7 +269,7 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> No
                           .format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
 
     with tabs[5]:
-        
+        st.header("Tabla Resumen Mensual (incluye depósito inicial)")
         if summary_monthly is not None:
             tm = summary_monthly.copy()
             if (fy, fm) == (year, month):
