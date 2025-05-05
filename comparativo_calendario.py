@@ -48,14 +48,13 @@ def load_filters(chart_key: str) -> dict:
 
 def save_filters(chart_key: str, filters: dict) -> None:
     fn = f"{chart_key}_filters.json"
-    serial = {
+    to_store = {
         'year': int(filters.get('year', 0)),
         'month': int(filters.get('month', 0)),
         'asset': str(filters.get('asset', '')),
         'tipo': str(filters.get('tipo', 'AMBAS'))
     }
-    with open(fn, 'w') as f:
-        json.dump(serial, f)
+    json.dump(to_store, open(fn, 'w'))
 
 
 def summary_by_year(df: pd.DataFrame) -> pd.DataFrame | None:
@@ -86,7 +85,7 @@ def summary_by_year(df: pd.DataFrame) -> pd.DataFrame | None:
     return summary.reset_index().rename(columns={'year':'Año'})[['Año','PnL','Trades','Depósitos','% Var']]
 
 
-def summary_all_years(df: pd.DataFrame, asset: str, tipo: str) -> pd.DataFrame | None:
+def summary_all_years(df: pd.DataFrame) -> pd.DataFrame | None:
     df_dep = df[df['Deposito'] > 0].sort_values('Fecha')
     if df_dep.empty:
         st.warning("No se encontró un depósito inicial en el historial.")
@@ -97,17 +96,10 @@ def summary_all_years(df: pd.DataFrame, asset: str, tipo: str) -> pd.DataFrame |
 
     df2 = df[df['Fecha'] >= first_dep['Fecha']]
     ops = df2[df2['Deposito'] == 0]
-    if asset:
-        ops = ops[ops['Activo'] == asset]
-    if tipo.upper() != 'AMBAS':
-        ops = ops[ops['C&P'] == tipo.upper()]
-
     g = ops.groupby(['year','month'])['Profit'].agg(PnL='sum', Trades='count')
     deps = df2.groupby(['year','month'])['Deposito'].sum().rename('Depósitos')
     summary = pd.concat([g, deps], axis=1).fillna(0).sort_index()
-
-    if (fy, fm) in summary.index:
-        summary.at[(fy, fm), 'Depósitos'] -= base_amount
+    summary.at[(fy,fm), 'Depósitos'] -= base_amount
 
     capital = base_amount
     pct = []
@@ -122,7 +114,7 @@ def summary_all_years(df: pd.DataFrame, asset: str, tipo: str) -> pd.DataFrame |
     return df_sum[['Año','MesNum','Mes','PnL','Trades','Depósitos','% Var']]
 
 
-def calculate_daily(df: pd.DataFrame, year:int, month:int, asset:str, tipo:str) -> tuple[pd.DataFrame, float]:
+def calculate_daily(df: pd.DataFrame, year:int, month:int, asset:str, tipo:str) -> tuple[pd.DataFrame,float]:
     df_dep = df[df['Deposito']>0].sort_values('Fecha')
     if df_dep.empty:
         st.warning("No hay depósito inicial para calcular diario.")
@@ -132,26 +124,26 @@ def calculate_daily(df: pd.DataFrame, year:int, month:int, asset:str, tipo:str) 
     base_amount = first_dep['Deposito']
 
     if year == fy and month == fm:
-        # Filtrar depósitos del mismo mes sin usar .dt
         mask = df_dep['Fecha'].apply(lambda d: d.year == year and d.month == month)
+        # Incluir depósito inicial para cálculo correcto de % los primeros días
         cap_start = df_dep.loc[mask, 'Deposito'].sum()
     else:
         first_of_month = date(year, month, 1)
-        prev_profit = df[(df['Fecha'] >= first_dep['Fecha']) & (df['Fecha'] < first_of_month) & (df['Deposito'] == 0)]['Profit'].sum()
-        cap_start = base_amount + prev_profit
+        prev = df[(df['Fecha'] >= first_dep['Fecha']) & (df['Fecha'] < first_of_month) & (df['Deposito'] == 0)]['Profit'].sum()
+        cap_start = base_amount + prev
 
-    mask = (df['year'] == year) & (df['month'] == month)
+    m = (df['year'] == year) & (df['month'] == month)
     if asset:
-        mask &= df['Activo'] == asset
+        m &= df['Activo'] == asset
     if tipo.upper() != 'AMBAS':
-        mask &= df['C&P'] == tipo.upper()
-    monthly_ops = df[mask & (df['Deposito'] == 0)]
+        m &= df['C&P'] == tipo.upper()
 
+    monthly_ops = df[m & (df['Deposito'] == 0)]
     daily = (
         monthly_ops.groupby('Fecha')['Profit']
-            .agg(profit='sum', trades='count')
-            .reset_index()
-            .sort_values('Fecha')
+        .agg(profit='sum', trades='count')
+        .reset_index()
+        .sort_values('Fecha')
     )
 
     cap = cap_start
@@ -164,7 +156,7 @@ def calculate_daily(df: pd.DataFrame, year:int, month:int, asset:str, tipo:str) 
     return daily, cap_start
 
 
-def render_calendar(daily: pd.DataFrame, year:int, month:int, chart_key: str) -> None:
+def render_calendar(daily: pd.DataFrame, year:int, month:int) -> None:
     info = daily.set_index('Fecha')[['profit','trades','pct']].to_dict('index')
     matrix = calendar.Calendar(firstweekday=6).monthdayscalendar(year, month)
     n_weeks = len(matrix)
@@ -191,12 +183,13 @@ def render_calendar(daily: pd.DataFrame, year:int, month:int, chart_key: str) ->
     fig.update_yaxes(range=[n_weeks,0], showgrid=False, zeroline=False, showticklabels=False)
     fig.update_layout(height=n_weeks*100+100, margin=dict(l=20,r=20,t=20,b=20),
                       plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar':False}, key=f"{chart_key}_calendar")
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar':False})
 
 
-def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None:
+def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> None:
     df = clean_data(df_raw)
     saved = load_filters(chart_key)
+
     df_dep = df[df['Deposito']>0].sort_values('Fecha')
     if not df_dep.empty:
         first_dep = df_dep.iloc[0]
@@ -206,11 +199,11 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None
         fy = fm = base_amount = None
 
     summary_annual = summary_by_year(df)
-    asset = saved.get('asset', '')
-    tipo = saved.get('tipo', 'AMBAS')
-    summary_monthly = summary_all_years(df, asset, tipo)
+    summary_monthly = summary_all_years(df)
 
-    tabs = st.tabs(["Años","Mes","Activo","Tipo Op","Tabla Anual","Tabla Mensual"])
+    tabs = st.tabs([
+        "Años", "Mes", "Activo", "Tipo Op", "Tabla Anual", "Tabla Mensual"
+    ])
 
     with tabs[0]:
         years = sorted(df['year'].unique())
@@ -220,6 +213,7 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None
         saved_year = saved.get('year')
         default_idx = years.index(saved_year) if saved_year in years else len(years)-1
         year = st.selectbox("Año", years, index=default_idx, key=f"{chart_key}_year")
+
     with tabs[1]:
         months = sorted(df[df['year']==year]['month'].unique())
         if not months:
@@ -227,21 +221,28 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None
             return
         saved_month = saved.get('month')
         default_midx = months.index(saved_month) if saved_month in months else 0
-        month = st.selectbox("Mes", months, index=default_midx,
-                             format_func=lambda m: month_names[m], key=f"{chart_key}_month")
+        month = st.selectbox("Mes", months,
+                             index=default_midx,
+                             format_func=lambda m: month_names[m],
+                             key=f"{chart_key}_month")
+
     with tabs[2]:
         assets = sorted(df['Activo'].unique())
         saved_asset = saved.get('asset')
         default_aidx = assets.index(saved_asset) if saved_asset in assets else 0
         asset = st.selectbox("Activo", assets, index=default_aidx, key=f"{chart_key}_asset")
+
     with tabs[3]:
-        tps = ["AMBAS","CALL","PUT"]
-        stp = (saved.get('tipo') or "AMBAS").upper()
-        tidx = tps.index(stp) if stp in tps else 0
-        tipo = st.selectbox("Tipo Op", tps, index=tidx, key=f"{chart_key}_tipo")
+        tipos = ["AMBAS","CALL","PUT"]
+        saved_tipo = (saved.get('tipo') or "AMBAS").upper()
+        default_tidx = tipos.index(saved_tipo) if saved_tipo in tipos else 0
+        tipo = st.selectbox("Tipo Op", tipos, index=default_tidx, key=f"{chart_key}_tipo")
+
     save_filters(chart_key, {'year':year,'month':month,'asset':asset,'tipo':tipo})
+
     daily_df, cap_start = calculate_daily(df, year, month, asset, tipo)
-    render_calendar(daily_df, year, month, chart_key)
+    render_calendar(daily_df, year, month)
+
     profit_mes = daily_df['profit'].sum()
     trades_mes = int(daily_df['trades'].sum())
     pct_mes = (summary_monthly[(summary_monthly['Año']==year)&(summary_monthly['MesNum']==month)]['% Var'].iloc[0]
@@ -251,22 +252,27 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str="calendario") -> None
     c1.metric('P&L Mes', f"${profit_mes:,.2f}")
     c2.metric('Trades Mes', f"{trades_mes}")
     c3.metric('Incremento Mes', f"{pct_mes:+.1f}%")
+
     if summary_annual is not None and year in summary_annual['Año'].values:
         row = summary_annual[summary_annual['Año']==year].iloc[0]
         c4, c5, c6 = st.columns(3)
         c4.metric('P&L Año', f"${row['PnL']:,.2f}")
         c5.metric('Trades Año', f"{int(row['Trades'])}")
         c6.metric('Incremento Año', f"{row['% Var']:+.1f}%")
+
     with tabs[4]:
-        st.subheader("Tabla Resumen Anual")
+        
         if summary_annual is not None:
             ta = summary_annual.copy()
             ta['Depósitos'] += base_amount or 0
-            st.dataframe(ta.style.format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
+            st.dataframe(ta.style
+                          .format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
+
     with tabs[5]:
-        st.subheader("Tabla Resumen Mensual")
+        
         if summary_monthly is not None:
             tm = summary_monthly.copy()
             if (fy, fm) == (year, month):
                 tm.loc[(tm['Año']==fy)&(tm['MesNum']==fm), 'Depósitos'] += base_amount or 0
-            st.dataframe(tm.style.format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
+            st.dataframe(tm.style
+                          .format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
