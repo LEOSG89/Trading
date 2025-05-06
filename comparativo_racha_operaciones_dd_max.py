@@ -15,8 +15,10 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         st.warning(f"Faltan columnas necesarias para el cálculo: {', '.join(missing_cols)}.")
         return
 
-    # 2) Preparar DataFrame
-    df = df.copy().reset_index(drop=True)
+    # 2) Preparar DataFrame y conservar índice original
+    df = df.copy()
+    df['Original_Index'] = df.index
+    df.reset_index(drop=True, inplace=True)
     df["Index"] = df.index
     df['es_deposito'] = df.get('Deposito', 0).notna() & (df.get('Deposito', 0) != 0)
     df['es_retiro']   = df.get('Retiro', 0).notna() & (df.get('Retiro', 0) != 0)
@@ -91,7 +93,6 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         signo = grupo['signo_dd'].iloc[0]
         line_color = 'green' if signo > 0 else 'red' if signo < 0 else 'yellow'
 
-        # Trazo continuado
         if grupo['Index'].iloc[0] > 0:
             prev = grupo['Index'].iloc[0] - 1
             x_vals = [prev] + grupo['Index'].tolist()
@@ -112,10 +113,15 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
                 p = df.at[idx, 'Profit']
                 marker_colors.append('green' if p>0 else 'red' if p<0 else 'yellow')
 
+        custom_idx = [df.loc[idx, 'Original_Index'] for idx in x_vals]
         fig.add_trace(go.Scatter(
-            x=x_vals, y=y_vals, mode="lines+markers",
+            x=x_vals,
+            y=y_vals,
+            mode="lines+markers",
             line=dict(color=line_color),
             marker=dict(color=marker_colors, size=12),
+            customdata=custom_idx,
+            hovertemplate="Fila real: %{customdata}<br>Valor: %{y:.2f}%<extra></extra>",
             showlegend=False
         ))
 
@@ -130,7 +136,6 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     if not mostrar_tablas:
         return
 
-    # 6) Formateadores para tablas
     def fmt_pct(v): return f"{v:.2f}%"
     def fmt_td(td):
         if pd.isna(td): return "NaT"
@@ -139,7 +144,6 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         mins = (secs % 3600) // 60
         return f"{days}d {hrs:02d}h {mins:02d}m" if days else f"{hrs:02d}h {mins:02d}m"
 
-    # 7) Preparar tablas top
     df_pos = top_pos[['Racha_Ops','DD_Maximo_Drawdown','DD_Maximo_Drawup','Duracion','Media_Ops']].copy()
     df_neg = top_neg[['Racha_Ops','DD_Maximo_Drawdown','DD_Maximo_Drawup','Duracion','Media_Ops']].copy()
 
@@ -162,7 +166,6 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
         'Media_Ops':'Media Ops dw'
     }, inplace=True)
 
-    # 8) Añadir rachas de Profit
     df_pf = df.copy()
     df_pf['signo_pf'] = df_pf['Profit'].apply(lambda v: 1 if v>0 else -1 if v<0 else 0)
     df_pf['run_id_pf'] = (df_pf['signo_pf'] != df_pf['signo_pf'].shift()).cumsum()
@@ -174,7 +177,6 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     df_pos['Racha Positiva'] = up[:n_pos] + [None]*(n_pos - len(up))
     df_neg['Racha Negativa'] = dw[:n_neg] + [None]*(n_neg - len(dw))
 
-    # 9) Mostrar tablas en pestañas
     tab1, tab2 = st.tabs(["Top 5 Positivas","Top 5 Negativas"])
     with tab1:
         sty_pos = df_pos.style.applymap(lambda _: 'color: green;', subset=['Racha Positiva','Maximo Drawup'])
@@ -182,4 +184,3 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     with tab2:
         sty_neg = df_neg.style.applymap(lambda _: 'color: red;', subset=['Racha Negativa','Maximo Drawdown'])
         st.dataframe(sty_neg, use_container_width=True)
-
