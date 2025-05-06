@@ -311,37 +311,37 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> No
 
             # ——— Recalcular % Var mes a mes ———
             pct_list = []
-        for _, row in tm.iterrows():
-            m = row['MesNum']
-            # P&L acumulado hasta e incluyendo este mes
-            profit_cum  = df[
-                (df['Deposito']==0) &
-                (df['year']==year) &
-                (df['month']<=m)
-            ]['Profit'].sum()
-            # Depósitos acumulados hasta e incluyendo este mes
-            deposit_cum = df[
-                (df['Deposito']>0) &
-                (df['year']==year) &
-                (df['month']<=m)
-            ]['Deposito'].sum()
+            for _, row in tm.iterrows():
+                m = row['MesNum']
+                # P&L acumulado hasta e incluyendo este mes
+                profit_cum  = df[
+                    (df['Deposito']==0) &
+                    (df['year']==year) &
+                    (df['month']<=m)
+                ]['Profit'].sum()
+                # Depósitos acumulados hasta e incluyendo este mes
+                deposit_cum = df[
+                    (df['Deposito']>0) &
+                    (df['year']==year) &
+                    (df['month']<=m)
+                ]['Deposito'].sum()
 
-            # Para el primer mes, solo el depósito inicial
-            if m == first_mon:
-                denom = initial_dep
-            else:
-                denom = profit_cum + deposit_cum
+                # Para el primer mes, solo el depósito inicial
+                if m == first_mon:
+                    denom = initial_dep
+                else:
+                    denom = profit_cum + deposit_cum
 
-            pct_list.append(round((row['PnL'] / denom * 100), 2) if denom else 0)
+                pct_list.append(round((row['PnL'] / denom * 100), 2) if denom else 0)
 
-        tm['% Var'] = pct_list
+            tm['% Var'] = pct_list
 
-        # ——— Mostrar la tabla con el nuevo % Var ———
-        st.dataframe(
-            tm.style
-              .format({
-                  'PnL':       '${:,.2f}',
-                  'Depósitos': '${:,.2f}',
-                  '% Var':     '{:+.2f}%'
-              })
-        )
+            # ——— Mostrar la tabla con el nuevo % Var ———
+            st.dataframe(
+                tm.style
+                  .format({
+                      'PnL':       '${:,.2f}',
+                      'Depósitos': '${:,.2f}',
+                      '% Var':     '{:+.2f}%'
+                  })
+            )
