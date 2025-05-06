@@ -243,40 +243,46 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> No
     daily_df, cap_start = calculate_daily(df, year, month, asset, tipo)
     render_calendar(daily_df, year, month)
 
-    # ——— Cálculo de P&L Mes y Trades Mes ———
+    # ——— Datos base ———
+    df_dep       = df[df['Deposito']>0].sort_values('Fecha')
+    first_dep    = df_dep.iloc[0]
+    initial_dep  = first_dep['Deposito']
+    first_month  = first_dep['Fecha'].month
+
+    # ——— P&L y trades del mes actual ———
     profit_mes = daily_df['profit'].sum()
     trades_mes = int(daily_df['trades'].sum())
 
-    # 1) P&L año hasta la fecha (solo operaciones, sin depósitos)
-    if summary_annual is not None and year in summary_annual['Año'].values:
-        year_to_date_pl = float(
-            summary_annual.loc[summary_annual['Año']==year, 'PnL'].iloc[0]
-        )
-    else:
-        year_to_date_pl = df[
-            (df['Deposito']==0) & 
-            (df['year']==year) & 
-            (df['month']<=month)
-        ]['Profit'].sum()
-
-    # 2) Suma de todos los depósitos de este año hasta el mes actual
-    depositos_year_to_date = df[
-        (df['Deposito']>0) & 
-        (df['year']==year) & 
-        (df['month']<=month)
+    # ——— Acumulados hasta el mes actual ———
+    # Incluye mes 1…mes_N
+    profit_cum  = df[
+        (df['Deposito'] == 0) &
+        (df['year']     == year) &
+        (df['month']   <= month)
+    ]['Profit'].sum()
+    deposit_cum = df[
+        (df['Deposito'] > 0) &
+        (df['year']     == year) &
+        (df['month']   <= month)
     ]['Deposito'].sum()
 
-    # 3) Denominador según tu fórmula
-    denominador = year_to_date_pl + depositos_year_to_date
+    # ——— Elegimos denominador distinto para el primer mes ———
+    if month == first_month:
+        # solo el depósito inicial, sin sumar ningún otro depósito
+        denominador = initial_dep
+    else:
+        # mes 2 en adelante: P&L y Depósitos de todos los meses hasta el actual
+        denominador = profit_cum + deposit_cum
 
-    # 4) % del mes
+    # ——— Cálculo del % Mes ———
     pct_mes = (profit_mes / denominador * 100) if denominador else 0
 
-    # ——— Mostrar las métricas ———
+    # ——— Mostrar métricas ———
     c1, c2, c3 = st.columns(3)
     c1.metric('P&L Mes',        f"${profit_mes:,.2f}")
     c2.metric('Trades Mes',     f"{trades_mes}")
-    c3.metric('Incremento Mes', f"{pct_mes:+.1f}%") 
+    c3.metric('Incremento Mes', f"{pct_mes:+.1f}%")
+
 
 
     if summary_annual is not None and year in summary_annual['Año'].values:
@@ -295,10 +301,47 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> No
                           .format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
 
     with tabs[5]:
-        
         if summary_monthly is not None:
             tm = summary_monthly.copy()
-            if (fy, fm) == (year, month):
-                tm.loc[(tm['Año']==fy)&(tm['MesNum']==fm), 'Depósitos'] += base_amount or 0
-            st.dataframe(tm.style
-                          .format({'PnL':'${:,.2f}','Depósitos':'${:,.2f}','% Var':'{:+.2f}%'}))
+
+            # ——— Datos iniciales ———
+            first_dep   = df[df['Deposito']>0].sort_values('Fecha').iloc[0]
+            initial_dep = first_dep['Deposito']
+            first_mon   = first_dep['Fecha'].month
+
+            # ——— Recalcular % Var mes a mes ———
+            pct_list = []
+        for _, row in tm.iterrows():
+            m = row['MesNum']
+            # P&L acumulado hasta e incluyendo este mes
+            profit_cum  = df[
+                (df['Deposito']==0) &
+                (df['year']==year) &
+                (df['month']<=m)
+            ]['Profit'].sum()
+            # Depósitos acumulados hasta e incluyendo este mes
+            deposit_cum = df[
+                (df['Deposito']>0) &
+                (df['year']==year) &
+                (df['month']<=m)
+            ]['Deposito'].sum()
+
+            # Para el primer mes, solo el depósito inicial
+            if m == first_mon:
+                denom = initial_dep
+            else:
+                denom = profit_cum + deposit_cum
+
+            pct_list.append(round((row['PnL'] / denom * 100), 2) if denom else 0)
+
+        tm['% Var'] = pct_list
+
+        # ——— Mostrar la tabla con el nuevo % Var ———
+        st.dataframe(
+            tm.style
+              .format({
+                  'PnL':       '${:,.2f}',
+                  'Depósitos': '${:,.2f}',
+                  '% Var':     '{:+.2f}%'
+              })
+        )
