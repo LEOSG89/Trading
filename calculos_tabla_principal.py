@@ -87,31 +87,60 @@ def calcular_dd_max(df: pd.DataFrame) -> pd.DataFrame:
 
 def calcular_dd_up(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Añade o actualiza la columna 'DD/Max' con los drawups (subidas sobre el 
-    máximo histórico) según la lógica de la función original.
-    Solo se actualiza donde hay drawup (incluyendo 0.00%).
+    Igual que antes: mantiene la lógica de máximo histórico y no sobreescribe
+    valores previos de 'DD/Max'. Ahora, además, cada vez que el raw_dd sea
+    0 o negativo, reinicia el acumulado de porcentaje para mostrar los picos
+    de cada racha alcista.
     """
     if 'Profit Tot.' not in df.columns:
         raise KeyError("Falta la columna 'Profit Tot.'")
     df = df.copy()
+
+    # 1) Convertir balances
     balances = pd.to_numeric(df['Profit Tot.'], errors='coerce').fillna(0.0)
+
+    # 2) Calcular raw_dd con respecto al máximo histórico (puede ser + o −)
     max_balance_prev = 0.0
-    dd_up_list = []
-    orig_dd = df.get('DD/Max', pd.Series('', index=df.index))
+    raw_dd = []
     for bal in balances:
         if max_balance_prev > 0:
-            dd_up = (bal - max_balance_prev) / max_balance_prev * 100
-            dd_up_list.append(f"{dd_up:.2f}%" if dd_up != 0 else '0.00%')
+            dd = (bal - max_balance_prev) / max_balance_prev * 100
+            raw_dd.append(dd)
         else:
-            dd_up_list.append('')
+            raw_dd.append(None)
         if bal > max_balance_prev:
             max_balance_prev = bal
+
+    # 3) Acumular solo los positivos, y resetear cuando dd <= 0
+    acumulado = 0.0
+    cum_dd = []
+    for dd in raw_dd:
+        if dd is None:
+            # primera fila o balance 0
+            cum_dd.append(None)
+        elif dd > 0:
+            acumulado += dd
+            cum_dd.append(acumulado)
+        else:
+            # dd == 0 o negativo => resetea el acumulado a ese valor
+            acumulado = dd
+            cum_dd.append(acumulado)
+
+    # 4) Formatear como cadena con dos decimales y sufijo '%'
+    formatted_dd = [
+        f"{x:.2f}%" if x is not None else ''
+        for x in cum_dd
+    ]
+
+    # 5) No sobreescribir valores manuales o anteriores en 'DD/Max'
+    orig_dd = df.get('DD/Max', pd.Series('', index=df.index))
     new_dd = []
-    for orig, up in zip(orig_dd, dd_up_list):
-        if up and (orig in ['', '0%', '0.00%']):
-            new_dd.append(up)
+    for orig, nuevo in zip(orig_dd, formatted_dd):
+        if nuevo and orig in ['', '0%', '0.00%']:
+            new_dd.append(nuevo)
         else:
             new_dd.append(orig)
+
     df['DD/Max'] = new_dd
     return df
 
