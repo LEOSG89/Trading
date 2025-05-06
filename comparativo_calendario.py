@@ -243,15 +243,41 @@ def mostrar_calendario(df_raw: pd.DataFrame, chart_key:str = "calendario") -> No
     daily_df, cap_start = calculate_daily(df, year, month, asset, tipo)
     render_calendar(daily_df, year, month)
 
+    # ——— Cálculo de P&L Mes y Trades Mes ———
     profit_mes = daily_df['profit'].sum()
     trades_mes = int(daily_df['trades'].sum())
-    pct_mes = (summary_monthly[(summary_monthly['Año']==year)&(summary_monthly['MesNum']==month)]['% Var'].iloc[0]
-               if summary_monthly is not None and ((summary_monthly['Año']==year)&(summary_monthly['MesNum']==month)).any()
-               else (profit_mes/cap_start*100) if cap_start else 0)
+
+    # 1) P&L año hasta la fecha (solo operaciones, sin depósitos)
+    if summary_annual is not None and year in summary_annual['Año'].values:
+        year_to_date_pl = float(
+            summary_annual.loc[summary_annual['Año']==year, 'PnL'].iloc[0]
+        )
+    else:
+        year_to_date_pl = df[
+            (df['Deposito']==0) & 
+            (df['year']==year) & 
+            (df['month']<=month)
+        ]['Profit'].sum()
+
+    # 2) Suma de todos los depósitos de este año hasta el mes actual
+    depositos_year_to_date = df[
+        (df['Deposito']>0) & 
+        (df['year']==year) & 
+        (df['month']<=month)
+    ]['Deposito'].sum()
+
+    # 3) Denominador según tu fórmula
+    denominador = year_to_date_pl + depositos_year_to_date
+
+    # 4) % del mes
+    pct_mes = (profit_mes / denominador * 100) if denominador else 0
+
+    # ——— Mostrar las métricas ———
     c1, c2, c3 = st.columns(3)
-    c1.metric('P&L Mes', f"${profit_mes:,.2f}")
-    c2.metric('Trades Mes', f"{trades_mes}")
-    c3.metric('Incremento Mes', f"{pct_mes:+.1f}%")
+    c1.metric('P&L Mes',        f"${profit_mes:,.2f}")
+    c2.metric('Trades Mes',     f"{trades_mes}")
+    c3.metric('Incremento Mes', f"{pct_mes:+.1f}%") 
+
 
     if summary_annual is not None and year in summary_annual['Año'].values:
         row = summary_annual[summary_annual['Año']==year].iloc[0]
