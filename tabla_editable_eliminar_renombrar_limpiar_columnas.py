@@ -6,10 +6,54 @@ import time
 # Archivo para persistencia de la tabla editada
 STORAGE_FILE = "tabla_edicion.json"
 
+def eliminar_columna(df: pd.DataFrame, col_name: str) -> pd.DataFrame:
+    """
+    Elimina la columna especificada del DataFrame si existe.
+    Muestra una alerta si la columna no está presente.
+
+    Parámetros:
+    - df: DataFrame al que se aplicará la eliminación.
+    - col_name: Nombre de la columna a eliminar.
+
+    Retorna:
+    - DataFrame modificado.
+    """
+    if col_name in df.columns:
+        df.drop(columns=[col_name], inplace=True)
+        st.success(f"Columna '{col_name}' eliminada.")
+    else:
+        st.warning(f"No existe la columna '{col_name}'.")
+    return df
+
+
+def eliminar_fila(df: pd.DataFrame, row_indices: list) -> pd.DataFrame:
+    """
+    Elimina las filas especificadas del DataFrame si existen.
+    Muestra una alerta si no se selecciona ninguna fila.
+
+    Parámetros:
+    - df: DataFrame al que se aplicará la eliminación.
+    - row_indices: Lista de índices de filas a eliminar.
+
+    Retorna:
+    - DataFrame modificado.
+    """
+    if row_indices:
+        # Ordenar descendente para evitar problemas de reindexación
+        for idx in sorted(map(int, row_indices), reverse=True):
+            if idx in df.index:
+                df.drop(index=idx, inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        st.success(f"Filas eliminadas: {', '.join(map(str, row_indices))}")
+    else:
+        st.warning("Sin filas seleccionadas para eliminar.")
+    return df
+
+
 def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.DataFrame:
     """
     Módulo para gestionar la edición de datos en pestañas anidadas, con persistencia:
-    - Editar Filas: Vaciar Filas, Mover Filas, Editar / agregar fila
+    - Editar Filas: Vaciar Filas, Mover Filas, Editar / agregar fila, Eliminar Filas
     - Editar Columnas: Renombrar Cols, Eliminar Cols, Vaciar Cols, Agregar Cols
     - Columnas personalizadas: Notas, Fotos
     - Carga/Guarda automática en JSON
@@ -33,8 +77,8 @@ def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.D
 
     # --- EDITAR FILAS -------------------------------------------------------
     with tab_rows:
-        row_tabs = st.tabs(["Vaciar Filas", "Mover Filas", "Editar / agregar fila"])
-        tab_clear_row, tab_move, tab_edit = row_tabs
+        row_tabs = st.tabs(["Vaciar Filas", "Mover Filas", "Editar / agregar fila", "Eliminar Filas"])
+        tab_clear_row, tab_move, tab_edit, tab_delete = row_tabs
 
         # Vaciar Filas
         with tab_clear_row:
@@ -75,7 +119,6 @@ def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.D
                 'IV Rank', '% Alcanzado', '% Media', 'Objetividad 0-10',
                 'Fotos', 'Notas'
             ]
-            # Asegurar columnas en df
             for field in campos:
                 if field not in df.columns:
                     df[field] = ""
@@ -109,12 +152,19 @@ def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.D
                             df.at[idx, field] = inputs[field]
                     st.success(f"Fila {idx} actualizada.")
 
+        # Eliminar Filas
+        with tab_delete:
+            st.divider()
+            row_opts = [str(i) for i in df.index]
+            to_delete_rows = st.multiselect("Selecciona filas a eliminar", row_opts, key="tab_delete_rows")
+            if st.button("Eliminar filas", key="tab_delete_btn"):
+                df = eliminar_fila(df, to_delete_rows)
+
     # --- EDITAR COLUMNAS ---------------------------------------------------
     with tab_cols:
         col_tabs = st.tabs(["Renombrar Cols", "Eliminar Cols", "Vaciar Cols", "Agregar Cols"])
         tab_ren, tab_del, tab_clear_col, tab_add = col_tabs
 
-        # Renombrar Cols
         with tab_ren:
             st.divider()
             cols = df.columns.tolist()
@@ -129,18 +179,16 @@ def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.D
                     df.rename(columns={col_to_rename: new_name}, inplace=True)
                     st.success(f"'{col_to_rename}' renombrada a '{new_name}'.")
 
-        # Eliminar Cols
         with tab_del:
             st.divider()
             to_delete = st.multiselect("Selecciona columnas a eliminar", df.columns.tolist(), key="tab_del_cols")
             if st.button("Eliminar columnas", key="tab_del_btn"):
                 if to_delete:
-                    df.drop(columns=to_delete, inplace=True)
-                    st.success(f"Eliminadas: {', '.join(to_delete)}")
+                    for col in to_delete:
+                        df = eliminar_columna(df, col)
                 else:
                     st.warning("Sin columnas seleccionadas.")
 
-        # Vaciar Cols
         with tab_clear_col:
             st.divider()
             to_clear = st.multiselect("Selecciona columnas a vaciar", df.columns.tolist(), key="tab_clear_cols")
@@ -152,7 +200,6 @@ def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.D
                 else:
                     st.warning("Sin columnas seleccionadas.")
 
-        # Agregar Cols
         with tab_add:
             st.divider()
             new_col = st.text_input("Nombre nueva columna (vacío=ignorar)", key="tab_add_name")
@@ -196,3 +243,4 @@ def tabla_editable_eliminar_renombrar_limpiar_columnas(df: pd.DataFrame) -> pd.D
             pass
 
     return df
+
