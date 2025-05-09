@@ -31,6 +31,7 @@ from comparativo_histograma_profit_call_put import histograma_profit_call_put
 from comparativo_racha_operaciones_dd_max import comparativo_racha_dd_max
 from comparativo_mapa_calor_tiempo import mostrar_heatmaps_dia_hora
 from comparativo_calendario import mostrar_calendario
+from convertir_fechas import convertir_fechas
 from calculos_tabla_principal import (
     calcular_profit_operacion, calcular_porcentaje_profit_op, calcular_profit_total,
     calcular_dd_max, calcular_dd_up, calcular_profit_t, calcular_profit_alcanzado_vectorizado,
@@ -138,9 +139,12 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
 df = st.session_state.datos.copy()
 df = limpiar_columnas(df)
 
-for col in ['Fecha / Hora', 'Fecha / Hora de Cierre']:
-    if col in df:
-        df[col] = pd.to_datetime(df[col], errors='coerce')
+df = convertir_fechas(
+    df,
+    cols=['Fecha / Hora', 'Fecha / Hora de Cierre'],
+    dayfirst=True,      # ajusta según tu convención
+    yearfirst=False
+)
 
 df = calcular_tiempo_operacion_vectorizado(df)
 if '% Profit. Op' in df.columns and not pd.api.types.is_string_dtype(df['% Profit. Op']):
