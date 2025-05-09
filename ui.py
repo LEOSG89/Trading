@@ -145,6 +145,8 @@ df = convertir_fechas(
     dayfirst=True,      # ajusta según tu convención
     yearfirst=False
 )
+# Añadir columna Día (Lu, Ma, Mi, etc.)
+df['Día'] = df['Fecha / Hora'].dt.weekday.map({0:'Lu', 1:'Ma', 2:'Mi', 3:'Ju', 4:'Vi', 5:'Sa', 6:'Do'})
 
 df = calcular_tiempo_operacion_vectorizado(df)
 if '% Profit. Op' in df.columns and not pd.api.types.is_string_dtype(df['% Profit. Op']):
