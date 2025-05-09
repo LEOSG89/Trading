@@ -8,22 +8,28 @@ def calcular_porcentaje_profit_op(df: pd.DataFrame) -> pd.DataFrame:
     Solo se añade para filas válidas; deja vacías las demás.
     - El resultado exacto 0.00% se muestra como '0.00%'.
     - '-0.00%' se normaliza a '0.00%'.
+    - Solo calcula cuando ambos STRK Buy y STRK Sell tienen valor y STRK Buy != 0.
     """
     df = df.copy()
+    # Asegurarse de que existan ambas columnas
     if 'STRK Buy' in df.columns and 'STRK Sell' in df.columns:
-        mask = df['STRK Buy'].notna() & (df['STRK Buy'] != 0)
+        # Máscara para filas con valores ambos no nulos y STRK Buy distinto de cero
+        mask = (
+            df['STRK Buy'].notna() &
+            df['STRK Sell'].notna() &
+            (df['STRK Buy'] != 0)
+        )
         pct = pd.Series('', index=df.index, dtype=str)
+        # Cálculo solo en filas válidas
         dif = df.loc[mask, 'STRK Sell'] - df.loc[mask, 'STRK Buy']
         pct_vals_num = dif.div(df.loc[mask, 'STRK Buy']).mul(100)
         pct_str = pct_vals_num.map(lambda x: f"{x:.2f}%")
-        
-        # 🔥 Aseguramos que pct_str sea string antes de aplicar .str.replace
-        pct_str = pct_str.astype(str)
-        pct_str = pct_str.str.replace(r'^-0\\.00%$', '0.00%', regex=True)
-        
+        # Normalizar '-0.00%' a '0.00%'
+        pct_str = pct_str.astype(str).str.replace(r'^-0\\.00%$', '0.00%', regex=True)
         pct.loc[mask] = pct_str
         df['% Profit. Op'] = pct
     return df
+
 
 
 
@@ -46,32 +52,52 @@ def calcular_profit_total(df: pd.DataFrame) -> pd.DataFrame:
     """
     Añade al DataFrame una columna 'Profit Tot.' con la suma acumulativa
     de la columna 'Profit', formateada sin ceros innecesarios.
+    Si 'Profit' es None o NaN, deja el valor correspondiente como None.
     """
     df = df.copy()
     if 'Profit' in df.columns:
-        tot = df['Profit'].cumsum()
-        res = pd.Series('', index=df.index, dtype=str)
-        mask = tot.notna()
-        def fmt(x):
-            return str(int(x)) if x == int(x) else str(round(x,2))
-        res.loc[mask] = tot.loc[mask].apply(fmt)
+        profit = pd.to_numeric(df['Profit'], errors='coerce')
+        tot = profit.cumsum()
+        res = pd.Series([None] * len(df), index=df.index, dtype=object)
+        for idx in df.index:
+            if pd.isna(df.loc[idx, 'Profit']) or df.loc[idx, 'Profit'] is None:
+                res.loc[idx] = None
+            else:
+                val = tot.loc[idx]
+                res.loc[idx] = int(val) if val == int(val) else round(val, 2)
         df['Profit Tot.'] = res
     return df
 
+
+import pandas as pd
 
 def calcular_dd_max(df: pd.DataFrame) -> pd.DataFrame:
     """
     Añade al DataFrame una columna 'DD/Max' que indica, para cada fila,
     la caída máxima (drawdown) desde el máximo histórico del balance
-    acumulado ('Profit Tot.'), expresada como porcentaje negativo o vacío.
+    acumulado ('Profit Tot.'), expresada como porcentaje negativo o None
+    (solo en la última fila si 'Profit Tot.' es None).
+    Solo calcula drawdown si 'Profit Tot.' tiene valor; para valores vacíos
+    en filas intermedias deja cadena vacía, y None solo en la última fila.
     """
     if 'Profit Tot.' not in df.columns:
         raise KeyError("Falta la columna 'Profit Tot.'")
+
     df = df.copy()
-    balances = pd.to_numeric(df['Profit Tot.'], errors='coerce').fillna(0.0)
+    orig = df['Profit Tot.']
+    balances = pd.to_numeric(df['Profit Tot.'], errors='coerce')
+
     max_balance = 0.0
     dd_list = []
-    for bal in balances:
+    n = len(orig)
+    for i, (val, bal) in enumerate(zip(orig, balances)):
+        # Si 'Profit Tot.' es None o cadena vacía
+        if pd.isna(val) or (isinstance(val, str) and val.strip() == ''):
+            # Solo asignar None en la última fila, cadena vacía en resto
+            dd_list.append(None if i == n-1 else '')
+            continue
+
+        # Cálculo normal de drawdown
         if bal > max_balance:
             max_balance = bal
             dd_list.append('')
@@ -81,9 +107,13 @@ def calcular_dd_max(df: pd.DataFrame) -> pd.DataFrame:
                 dd_list.append(f"-{dd:.2f}%" if dd != 0 else '')
             else:
                 dd_list.append('')
+
     df['DD/Max'] = dd_list
     return df
 
+
+
+import pandas as pd
 
 def calcular_dd_up(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -145,52 +175,55 @@ def calcular_dd_up(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+
+import numpy as np
+import pandas as pd
+
 def calcular_profit_t(df: pd.DataFrame) -> pd.DataFrame:
     """
     Añade o actualiza la columna 'Profit T.' con el porcentaje de variación
     de 'Profit Tot.' respecto a la fila anterior, formateado con dos decimales
     y sin signo '+' en los positivos.
 
-    - La primera fila (o si hay menos de 2 filas) se marca como '0%'.
+    - La primera fila (o si hay menos de 2 filas) se marca como '0%' si existe valor previo.
     - Cualquier '0.00%' se normaliza a '0%'.
+    - Si 'Profit Tot.' está vacío o es NaN, se deja '' en 'Profit T.'.
     - Se evitan infinidad(es) convirtiéndolas en 0.
     """
     if 'Profit Tot.' not in df.columns:
         raise KeyError("Falta la columna 'Profit Tot.'")
     df = df.copy()
 
+    # Máscara para filas sin valor en 'Profit Tot.' (NaN o cadena vacía)
+    orig = df['Profit Tot.']
+    mask_empty = orig.isna() | orig.astype(str).str.strip().eq('')
+
     # 1) Extraer y limpiar la serie numérica
     tot = (
-        df['Profit Tot.']
-          .astype(str)
-          .str.replace('[,%]', '', regex=True)
-          .pipe(pd.to_numeric, errors='coerce')
-          .fillna(0)
+        orig.astype(str)
+            .str.replace('[,%]', '', regex=True)
+            .pipe(pd.to_numeric, errors='coerce')
     )
 
-    # 2) Si no hay al menos 2 valores, ponemos todo a '0%'
-    if len(tot) < 2:
-        df['Profit T.'] = ['0%'] * len(df)
-        return df
+    # 2) Cálculo de porcentaje solo si al menos 2 valores numéricos
+    pct = tot.diff().divide(tot.shift(1))
+    pct = pct.replace([np.inf, -np.inf], np.nan).fillna(0).mul(100).round(2)
 
-    # 3) Cálculo manual del % de cambio: (actual – anterior) / anterior
-    pct = (
-        tot.diff()
-           .divide(tot.shift(1))
-           .replace([np.inf, -np.inf], np.nan)  # evitar inf
-           .fillna(0)
-           .mul(100)
-           .round(2)
-    )
+    # 3) Formateo: siempre con dos decimales y %, sin '+' para positivos
+    formatted = pct.map(lambda x: f"{x:.2f}%").replace({'0.00%': '0%'})
 
-    # 4) Formateo: siempre con dos decimales y %,
-    #    sin '+' para positivos, manteniendo '-' en negativos.
-    df['Profit T.'] = (
-        pct.map(lambda x: f"{x:.2f}%")
-           .replace({'0.00%': '0%'})
-    )
+    # 4) Asignar resultados: en filas vacías, dejar cadena vacía;
+    #    en la primera fila (sin anterior), si no está vacío, poner '0%'
+    resultado = formatted.copy()
+    # Primera fila
+    if len(resultado) >= 1 and not mask_empty.iloc[0]:
+        resultado.iloc[0] = '0%'
+    # Filas vacías quedan ''
+    resultado[mask_empty] = ''
 
+    df['Profit T.'] = resultado
     return df
+
 
 
 def calcular_profit_alcanzado_vectorizado(df: pd.DataFrame) -> pd.DataFrame:
