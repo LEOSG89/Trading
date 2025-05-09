@@ -23,13 +23,12 @@ def comparativo_racha_dd_max(df: pd.DataFrame, chart_key: str = "racha_dd_max") 
     df['es_deposito'] = df.get('Deposito', 0).notna() & (df.get('Deposito', 0) != 0)
     df['es_retiro']   = df.get('Retiro', 0).notna() & (df.get('Retiro', 0) != 0)
 
-    df['dd_val'] = (
-        df['DD/Max']
-          .astype(str)
-          .str.rstrip('%')
-          .replace('', '0')
-          .astype(float)
+    df['dd_val'] = pd.to_numeric(
+        df['DD/Max'].astype(str).str.rstrip('%'),
+        errors='coerce'
     )
+
+
     df['signo_dd'] = df['dd_val'].apply(lambda v: 1 if v>0 else -1 if v<0 else 0)
     df['run_id_dd'] = (df['signo_dd'] != df['signo_dd'].shift()).cumsum()
 
