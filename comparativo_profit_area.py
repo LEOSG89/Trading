@@ -16,6 +16,9 @@ def mostrar_profit_area(df: pd.DataFrame, chart_key: str) -> None:
 
     # Índices y archivo de exclusión
     df_idx = list(df.index)
+    if not df_idx:
+        st.info("No hay datos de Profit Tot. para mostrar.")
+        return
     json_file = f"{chart_key}_excl.json"
     if os.path.exists(json_file):
         try:
@@ -52,10 +55,10 @@ def mostrar_profit_area(df: pd.DataFrame, chart_key: str) -> None:
 
     # Filtrar índices a graficar
     plot_idx = [i for i in df_idx if i not in excl]
-    # Excluir el último punto si es 'None'
-    last_idx = df_idx[-1]
+    # Excluir el último punto si corresponde a None o NaN
     ultimo_val = df['Profit Tot.'].iloc[-1]
-    if ultimo_val is None or str(ultimo_val).strip().lower() == 'none' or pd.isna(ultimo_val):
+    if plot_idx and (ultimo_val is None or str(ultimo_val).strip().lower() == 'none' or pd.isna(ultimo_val)):
+        last_idx = df_idx[-1]
         if last_idx in plot_idx:
             plot_idx.remove(last_idx)
 
@@ -165,4 +168,4 @@ def mostrar_profit_area(df: pd.DataFrame, chart_key: str) -> None:
         lambda _: 'color: pink;',
         subset=['Últimos 5 Retiros', 'Retiro D dw']
     )
-    st.dataframe(sty, use_container_width=True)    
+    st.dataframe(sty, use_container_width=True)
