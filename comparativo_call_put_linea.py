@@ -48,7 +48,7 @@ def comparativo_call_put_linea(df: pd.DataFrame, chart_key: str = "call_put_area
     with c2:
         mostrar_put = st.checkbox("🔴PUT", value=saved.get('put', True), key=f"{chart_key}_put")
     with c3:
-        mostrar_total = st.checkbox("🔵TOTAL", value=saved.get('total', True), key=f"{chart_key}_total")
+        mostrar_total = st.checkbox("🔹TOTAL", value=saved.get('total', True), key=f"{chart_key}_total")
     with c4:
         mostrar_resumen = st.checkbox("RESUMEN", value=saved.get('resumen', True), key=f"{chart_key}_resumen")
 
@@ -62,6 +62,10 @@ def comparativo_call_put_linea(df: pd.DataFrame, chart_key: str = "call_put_area
     profits = df['Profit']
     mask_call = df['C&P'].str.upper() == 'CALL'
     mask_put = df['C&P'].str.upper() == 'PUT'
+
+    if not mask_call.any() and not mask_put.any():
+        st.warning("No hay datos de CALL o PUT para graficar.")
+        return
 
     call_cumsum = profits.where(mask_call).cumsum()
     put_cumsum = profits.where(mask_put).cumsum()
@@ -91,9 +95,14 @@ def comparativo_call_put_linea(df: pd.DataFrame, chart_key: str = "call_put_area
                                  name='PUT -', showlegend=False,
                                  line=dict(color='red'), fill='tozeroy'))
     if mostrar_total:
-        fig.add_trace(go.Scatter(x=df.index, y=total_cumsum, mode='lines',
-                                 name='TOTAL', line=dict(color='cyan'),
+        pos_total = total_cumsum.where(total_cumsum > 0, 0)
+        neg_total = total_cumsum.where(total_cumsum < 0, 0)
+        fig.add_trace(go.Scatter(x=df.index, y=pos_total, mode='lines',
+                                 name='TOTAL +', line=dict(color='cyan'),
                                  fill='tozeroy'))
+        fig.add_trace(go.Scatter(x=df.index, y=neg_total, mode='lines',
+                                 name='TOTAL -', showlegend=False,
+                                 line=dict(color='red'), fill='tozeroy'))
 
     # Layout sin leyenda
     fig.update_layout(xaxis_title="Operación (índice)",
@@ -103,11 +112,11 @@ def comparativo_call_put_linea(df: pd.DataFrame, chart_key: str = "call_put_area
 
     st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
-        # Tablas resumen
+    # Tablas resumen
     if mostrar_resumen:
-        total_call = call_full.iloc[-1]
-        total_put = put_full.iloc[-1]
-        total_all = total_cumsum.iloc[-1]
+        total_call = call_full.iloc[-1] if not call_full.empty else 0
+        total_put = put_full.iloc[-1] if not put_full.empty else 0
+        total_all = total_cumsum.iloc[-1] if not total_cumsum.empty else 0
         otros = df.loc[~mask_call & ~mask_put, 'Profit'].fillna(0)
         deps = otros[otros > 0].sum()
         rets = -otros[otros < 0].sum()
