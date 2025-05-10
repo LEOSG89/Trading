@@ -2,7 +2,6 @@ import pandas as pd
 from dateutil import parser
 from datetime import datetime
 
-
 def convertir_fechas(df: pd.DataFrame, cols, dayfirst=False, yearfirst=False) -> pd.DataFrame:
     """
     Convierte de forma robusta múltiples formatos de fecha en las columnas indicadas.
@@ -52,5 +51,9 @@ def convertir_fechas(df: pd.DataFrame, cols, dayfirst=False, yearfirst=False) ->
                         )
                     except Exception:
                         return pd.NaT
+            # Aplicar parse robusto
             df[col] = df[col].apply(robust_parse)
-    return df 
+            # Asegurar dtype datetime64
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+    return df
+
