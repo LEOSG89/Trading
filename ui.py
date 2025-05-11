@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 import os, json
 import config
+# 1) Inicializa el gestor de archivos (crea carpeta e índice si no existen)
+from gestor_archivos import (
+    init_storage,
+    list_saved_files,
+    save_uploaded_file,
+    load_file_df,
+    delete_saved_file
+)
 from copia_tabla import copiar_datos_a_tabla
 from botones import crear_botones_trading, crear_botones_iv_rank
 from operations import agregar_operacion, procesar_deposito_retiro
@@ -37,7 +45,6 @@ from calculos_tabla_principal import (
     calcular_dd_max, calcular_dd_up, calcular_profit_t, calcular_profit_alcanzado_vectorizado,
     calcular_profit_media_vectorizado
 )
-from subir_archivo import subir_archivo
 from eliminar_columnas_duplicadas_contador import limpiar_columnas
 from tabla_editable_eliminar_renombrar_limpiar_columnas import tabla_editable_eliminar_renombrar_limpiar_columnas
 
@@ -83,12 +90,33 @@ def init_session():
 init_session()
 if 'pintar_colores' not in st.session_state:
     st.session_state.pintar_colores = False
+# ———————— Gestión de múltiples archivos ————————
+with st.sidebar.expander("Archivos", expanded=True):
+    saved = list_saved_files()                # [{name,path},…]
+    nombres = [f["name"] for f in saved]
+    nombres.insert(0, "↑ Subir nuevo ↑")
 
+    choice = st.selectbox("Archivo activo:", nombres, key="selector_archivo")
+
+    if choice == "↑ Subir nuevo ↑":
+        up = st.file_uploader("Sube CSV/XLSX", type=["csv","xlsx"], key="multi_uploader")
+        if up:
+            save_uploaded_file(up)
+            st.success(f"Guardado '{up.name}'. Ahora selecciónalo arriba.")
+    else:
+        # Botón para eliminar el archivo seleccionado
+        if st.button("🗑️ Eliminar archivo seleccionado"):
+            delete_saved_file(choice)
+            st.success(f"El archivo '{choice}' ha sido eliminado.")
+            st.stop()  # Detiene la ejecución para que el selector recargue la lista
+        # Si no se elimina, lo cargamos normalmente
+        df = load_file_df(choice)
+        if not df.empty:
+            st.session_state.datos = df
+
+
+ # ———————— Ajustes y resto del sidebar ————————           
 with st.sidebar.expander("Cargar y Ajustes", expanded=True):
-    # 1) Leer el archivo y, si hay datos nuevos, guardarlos en sesión
-    df_cargado = subir_archivo()
-    if not df_cargado.empty:
-        st.session_state.datos = df_cargado
     st.slider("Alto Vista", 200, 1200, st.session_state.h, key='h')
     st.slider("Ancho Vista", 200, 2000, st.session_state.w, key='w')
     st.markdown("### Ajustar Rangos de Gráficos")
