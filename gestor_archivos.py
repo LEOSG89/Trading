@@ -28,16 +28,21 @@ def save_uploaded_file(uploaded) -> None:
     Guarda el UploadedFile en disco y actualiza el índice si es nuevo.
     """
     destino = os.path.join(UPLOADED_DIR, uploaded.name)
-    # Escribir la copia en disco
+
+    # 1) Asegurarnos de que el directorio existe
+    os.makedirs(os.path.dirname(destino), exist_ok=True)
+
+    # 2) Escribir la copia en disco
     with open(destino, "wb") as f:
         f.write(uploaded.getbuffer())
 
-    # Actualizar índice
+    # 3) Actualizar índice
     files = list_saved_files()
     if all(f["name"] != uploaded.name for f in files):
         files.append({"name": uploaded.name, "path": destino})
         with open(UPLOADED_INDEX, "w") as f:
             json.dump(files, f)
+
 
 def load_file_df(name: str) -> pd.DataFrame:
     """
