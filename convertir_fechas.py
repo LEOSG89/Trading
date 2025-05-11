@@ -40,4 +40,3 @@ def convertir_fechas(df: pd.DataFrame, cols, dayfirst=False, yearfirst=False) ->
         # Asegurar dtype datetime64
         df[col] = pd.to_datetime(df[col], errors='coerce')
     return df
-
