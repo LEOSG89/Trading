@@ -13,7 +13,6 @@ def detectar_tramos(dd_numeric: list, fechas: list, modo: str, df: pd.DataFrame)
 
     for idx, val in enumerate(dd_numeric):
         if val is None:
-            # trata valores vacíos como cierre de tramo
             if in_tramo:
                 fecha_inicio = fechas[inicio]
                 fecha_fin = fechas[idx]
@@ -63,6 +62,7 @@ def mostrar_dd_max(df: pd.DataFrame, chart_key: str) -> None:
     safe_key = chart_key.replace('/', '_')
     config_path = f"{safe_key}_config.json"
 
+    # Carga o inicialización de configuración
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
@@ -72,6 +72,7 @@ def mostrar_dd_max(df: pd.DataFrame, chart_key: str) -> None:
     else:
         cfg = {'sombras': True, 'ddw': True, 'dup': True}
 
+    # Checkbox de opciones
     col1, col2, col3 = st.columns(3)
     with col1:
         mostrar_sombras = st.checkbox("Sombras de racha", value=cfg['sombras'], key=f"{safe_key}_shapes")
@@ -80,6 +81,7 @@ def mostrar_dd_max(df: pd.DataFrame, chart_key: str) -> None:
     with col3:
         mostrar_dup = st.checkbox("🟢Mostrar D.Up", value=cfg['dup'], key=f"{safe_key}_dup")
 
+    # Guardar configuración
     cfg.update({'sombras': mostrar_sombras, 'ddw': mostrar_ddw, 'dup': mostrar_dup})
     try:
         with open(config_path, 'w') as f:
@@ -87,93 +89,88 @@ def mostrar_dd_max(df: pd.DataFrame, chart_key: str) -> None:
     except IOError:
         st.error(f"No se pudo guardar la configuración en {config_path}")
 
+    # Validación de datos
     if df.empty or 'DD/Max' not in df.columns or 'Fecha / Hora' not in df.columns:
         st.warning("Faltan datos o columnas necesarias.")
         return
 
-    dd_raw = df['DD/Max']
-    dd_series = pd.to_numeric(dd_raw.astype(str).str.rstrip('%'), errors='coerce')
+    # Procesar valores de DD/Max y fechas
+    dd_series = pd.to_numeric(df['DD/Max'].astype(str).str.rstrip('%'), errors='coerce')
     dd_list = [v if not pd.isna(v) else None for v in dd_series.tolist()]
-    dd_clean = [v if v is not None else 0.0 for v in dd_list]
-
     fechas = pd.to_datetime(df['Fecha / Hora'], errors='coerce').tolist()
+    valid_indices = [i for i, v in enumerate(dd_list) if v is not None]
+    last_valid = max(valid_indices) if valid_indices else -1
 
-    tramos_ddw = detectar_tramos(dd_clean, fechas, 'ddw', df) if mostrar_ddw else []
-    tramos_dup = detectar_tramos(dd_clean, fechas, 'dup', df) if mostrar_dup else []
+    # Detectar tramos
+    tramos_ddw = detectar_tramos([v if v is not None else 0.0 for v in dd_list], fechas, 'ddw', df) if mostrar_ddw else []
+    tramos_dup = detectar_tramos([v if v is not None else 0.0 for v in dd_list], fechas, 'dup', df) if mostrar_dup else []
     top5_ddw = sorted(tramos_ddw, key=lambda x: x[3])[:5]
     top5_dup = sorted(tramos_dup, key=lambda x: -x[3])[:5]
 
-    numeric_vals = [v for v in dd_list if v is not None]
-    y_max = max(numeric_vals) if numeric_vals else 0.0
-    y_min = min(numeric_vals) if numeric_vals else 0.0
+    # Límites del eje Y
+    y_vals = [v for v in dd_list if v is not None]
+    y_max = max(y_vals) if y_vals else 0.0
+    y_min = min(y_vals) if y_vals else 0.0
     pad = (y_max - y_min) * 0.1 if y_max != y_min else 1
     yt, yb = y_max + pad, y_min - pad
 
     fig = go.Figure()
+    total = len(dd_list)
+
+    # Área de caídas (DDw)
     if mostrar_ddw:
-        # Graficar DDw, excepto el último None (no mostrar punto en None)
-        y_ddw = []
-        total = len(dd_list)
-        for i, v in enumerate(dd_list):
-            if i == total - 1 and v is None:
-                y_ddw.append(None)
-            elif v is not None and v < 0:
-                y_ddw.append(v)
-            else:
-                y_ddw.append(0)
+        y_ddw = [None if i > last_valid else (v if (v is not None and v < 0) else 0) for i, v in enumerate(dd_list)]
         fig.add_trace(go.Scatter(
             x=list(range(total)),
             y=y_ddw,
-            fill='tozeroy', mode='lines', line=dict(color='red'), showlegend=False,
+            fill='tozeroy',
+            fillcolor='rgba(255,0,0,0.3)',
+            line=dict(color='rgba(255,0,0,1)'),
+            mode='lines',
+            showlegend=False,
             hovertemplate="Índice: %{x}<br>DD/Max: %{y:.2f}%<extra></extra>"
         ))
+
+    # Área de subidas (DUp)
     if mostrar_dup:
-        # Graficar DUp, excepto el último None
-        y_dup = []
-        total = len(dd_list)
-        for i, v in enumerate(dd_list):
-            if i == total - 1 and v is None:
-                y_dup.append(None)
-            elif v is not None and v > 0:
-                y_dup.append(v)
-            else:
-                y_dup.append(0)
+        y_dup = [None if i > last_valid else (v if (v is not None and v > 0) else 0) for i, v in enumerate(dd_list)]
         fig.add_trace(go.Scatter(
             x=list(range(total)),
             y=y_dup,
-            fill='tozeroy', mode='lines', line=dict(color='green'), showlegend=False,
+            fill='tozeroy',
+            fillcolor='rgba(0,255,0,0.3)',
+            line=dict(color='rgba(0,255,0,1)'),
+            mode='lines',
+            showlegend=False,
             hovertemplate="Índice: %{x}<br>DD/Max: %{y:.2f}%<extra></extra>"
         ))
 
+    # Sombras de tramos
     if mostrar_sombras:
         for start, end, dur_str, val, _, ops in top5_ddw:
-            fig.add_shape(
-                type='rect', x0=start, x1=end, y0=yb, y1=yt,
-                fillcolor='red', opacity=0.09, line_width=0, layer='below'
-            )
+            fig.add_shape(type='rect', x0=start, x1=end, y0=yb, y1=yt,
+                          fillcolor='rgba(255,0,0,0.1)', line_width=0, layer='below')
             mid_x, mid_y = (start + end) / 2, (yb + yt) / 2
             info = f"Duración: {dur_str}<br>Máx Caída: {val:.2f}%<br>Ops: {ops}<extra></extra>"
-            fig.add_trace(go.Scatter(
-                x=[mid_x], y=[mid_y], mode='markers', marker=dict(size=20, color='rgba(0,0,0,0)'),
-                hovertemplate=info, showlegend=False
-            ))
+            fig.add_trace(go.Scatter(x=[mid_x], y=[mid_y], mode='markers',
+                                     marker=dict(size=20, color='rgba(0,0,0,0)'),
+                                     hovertemplate=info, showlegend=False))
         for start, end, dur_str, val, _, ops in top5_dup:
-            fig.add_shape(
-                type='rect', x0=start, x1=end, y0=yb, y1=yt,
-                fillcolor='green', opacity=0.09, line_width=0, layer='below'
-            )
+            fig.add_shape(type='rect', x0=start, x1=end, y0=yb, y1=yt,
+                          fillcolor='rgba(0,255,0,0.1)', line_width=0, layer='below')
             mid_x, mid_y = (start + end) / 2, (yb + yt) / 2
             info = f"Duración: {dur_str}<br>Máx Subida: {val:.2f}%<br>Ops: {ops}<extra></extra>"
-            fig.add_trace(go.Scatter(
-                x=[mid_x], y=[mid_y], mode='markers', marker=dict(size=20, color='rgba(0,0,0,0)'),
-                hovertemplate=info, showlegend=False
-            ))
+            fig.add_trace(go.Scatter(x=[mid_x], y=[mid_y], mode='markers',
+                                     marker=dict(size=20, color='rgba(0,0,0,0)'),
+                                     hovertemplate=info, showlegend=False))
 
     fig.update_layout(
-        xaxis_title='Índice', yaxis_title='DD/Max (%)', template='plotly_dark', showlegend=False
+        xaxis_title='Índice', yaxis_title='DD/Max (%)',
+        template='plotly_dark', showlegend=False
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    # Tablas resumen
     tab1, tab2 = st.tabs(['🔴 Top D.Dw', '🟢 Top D.Up'])
     with tab1:
         if top5_ddw:
