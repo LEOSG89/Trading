@@ -1,41 +1,62 @@
 import os
-import json
-import pandas as pd
 import streamlit as st
-from copia_tabla import copiar_datos_a_tabla
+import pandas as pd
+import json
+from config import COL_FILE
 
-def subir_archivo(upload_key: str = 'uploader') -> pd.DataFrame | None:
+
+def subir_archivo(upload_key: str = 'uploader') -> pd.DataFrame:
     """
-    Sube un archivo (CSV/XLSX), limpia el estado anterior y retorna un nuevo DataFrame.
-    - Evita duplicación de archivos.
-    - Reemplaza el DataFrame actual si el archivo es nuevo.
+    Lee un archivo CSV/XLSX subido por el usuario y devuelve un DataFrame en bruto.
+    - Evita recargar el mismo archivo si nombre, tamaño y marca de tiempo no cambian.
+    - Asigna a st.session_state:
+        - datos: DataFrame leído
+        - loaded_file_id: tupla (nombre, size, last_modified)
+    - Guarda lista de columnas en COL_FILE si hay datos.
     """
-    archivo = st.file_uploader("Carga CSV/XLSX", type=['csv', 'xlsx'], key=upload_key)
+    uploaded = st.file_uploader(
+        "Selecciona archivo CSV/XLSX", type=["csv", "xlsx"], key=upload_key
+    )
 
-    if archivo is not None:
-        nuevo_nombre = archivo.name
-        anterior_nombre = st.session_state.get('loaded_filename', None)
+    # Resetear estado si se quita el archivo
+    if uploaded is None:
+        st.session_state.pop('loaded_file_id', None)
+        return pd.DataFrame()
 
-        # Solo procesar si es un archivo distinto al previamente cargado
-        if nuevo_nombre != anterior_nombre:
-            # Leemos y procesamos el archivo
-            df = copiar_datos_a_tabla(archivo)
+    # Identificador de versión de archivo
+    file_id = (
+        uploaded.name,
+        getattr(uploaded, 'size', None),
+        getattr(uploaded, 'last_modified', None)
+    )
+    anterior_id = st.session_state.get('loaded_file_id')
 
-            # Si hubo un error y df es None, lo reportamos y salimos
-            if df is None:
-                st.error("No se pudo leer el archivo correctamente.")
-                return None
+    # Si no cambia el archivo, devolvemos el existente
+    if anterior_id == file_id and 'datos' in st.session_state:
+        return st.session_state.datos
 
-            # Actualizamos estado
-            st.session_state.datos = df
-            st.session_state.loaded_filename = nuevo_nombre
+    # Leer el archivo según extensión
+    try:
+        if uploaded.name.lower().endswith('.csv'):
+            df = pd.read_csv(uploaded, dtype=str)
+        else:
+            df = pd.read_excel(uploaded, dtype=str)
+    except Exception as e:
+        st.error(f"Error al cargar el archivo: {e}")
+        return pd.DataFrame()
 
-            # Guardamos las columnas solo si hay datos
-            if not df.empty:
-                from config import COL_FILE
-                with open(COL_FILE, 'w') as f:
-                    json.dump(list(df.columns), f)
+    # Actualizar estado
+    st.session_state.datos = df
+    st.session_state.loaded_file_id = file_id
 
-            return df
+    # Persistir metadatos de columnas
+    if not df.empty:
+        try:
+            os.makedirs(os.path.dirname(COL_FILE), exist_ok=True)
+            with open(COL_FILE, 'w') as f:
+                json.dump(list(df.columns), f)
+        except Exception as e:
+            st.warning(f"No se pudo guardar metadatos de columnas: {e}")
 
-    return None
+    # Siempre devolver el DataFrame en sesión
+    return st.session_state.datos
