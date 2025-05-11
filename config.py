@@ -1,4 +1,11 @@
 # config.py
+import os
+
+# Carpeta donde se guardarán los archivos subidos
+UPLOADED_DIR = "uploaded_data"
+
+# Ruta al índice JSON dentro de la carpeta anterior
+UPLOADED_INDEX = os.path.join(UPLOADED_DIR, "index.json")
 
 # Rutas y parámetros globales
 COL_FILE = 'col_names.json'
