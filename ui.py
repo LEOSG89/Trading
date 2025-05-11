@@ -54,8 +54,10 @@ def init_session():
             cols = config.FIXED_COLS
     else:
         cols = config.FIXED_COLS
-    if 'datos' not in st.session_state:
+    # Si no existe o llegó a ser None, lo (re)inicializamos como DataFrame vacío
+    if 'datos' not in st.session_state or st.session_state.datos is None:
         st.session_state.datos = pd.DataFrame(columns=cols)
+
     if 'h' not in st.session_state or 'w' not in st.session_state:
         if os.path.exists(config.TABLE_FILE):
             try:
