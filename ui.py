@@ -85,7 +85,10 @@ if 'pintar_colores' not in st.session_state:
     st.session_state.pintar_colores = False
 
 with st.sidebar.expander("Cargar y Ajustes", expanded=True):
-    subir_archivo()
+    # 1) Leer el archivo y, si hay datos nuevos, guardarlos en sesión
+    df_cargado = subir_archivo()
+    if not df_cargado.empty:
+        st.session_state.datos = df_cargado
     st.slider("Alto Vista", 200, 1200, st.session_state.h, key='h')
     st.slider("Ancho Vista", 200, 2000, st.session_state.w, key='w')
     st.markdown("### Ajustar Rangos de Gráficos")
