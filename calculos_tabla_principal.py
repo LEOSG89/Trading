@@ -71,14 +71,16 @@ def calcular_profit_total(df: pd.DataFrame) -> pd.DataFrame:
 
 import pandas as pd
 
+import pandas as pd
+
 def calcular_dd_max(df: pd.DataFrame) -> pd.DataFrame:
     """
     Añade al DataFrame una columna 'DD/Max' que indica, para cada fila,
     la caída máxima (drawdown) desde el máximo histórico del balance
     acumulado ('Profit Tot.'), expresada como porcentaje negativo o None
-    (solo en la última fila si 'Profit Tot.' es None).
-    Solo calcula drawdown si 'Profit Tot.' tiene valor; para valores vacíos
-    en filas intermedias deja cadena vacía, y None solo en la última fila.
+    en fila posteriores al último dato válido en 'Profit Tot.'.
+    - Para filas intermedias sin valor deja cadena vacía.
+    - Para filas posteriores a la última con dato, asigna None.
     """
     if 'Profit Tot.' not in df.columns:
         raise KeyError("Falta la columna 'Profit Tot.'")
@@ -87,17 +89,21 @@ def calcular_dd_max(df: pd.DataFrame) -> pd.DataFrame:
     orig = df['Profit Tot.']
     balances = pd.to_numeric(df['Profit Tot.'], errors='coerce')
 
+    # Índice de la última fila con valor en 'Profit Tot.'
+    valid_indices = [i for i, val in enumerate(orig)
+                     if not (pd.isna(val) or (isinstance(val, str) and val.strip() == ''))]
+    last_valid = valid_indices[-1] if valid_indices else -1
+
     max_balance = 0.0
     dd_list = []
-    n = len(orig)
     for i, (val, bal) in enumerate(zip(orig, balances)):
-        # Si 'Profit Tot.' es None o cadena vacía
+        # Filas sin dato en 'Profit Tot.'
         if pd.isna(val) or (isinstance(val, str) and val.strip() == ''):
-            # Solo asignar None en la última fila, cadena vacía en resto
-            dd_list.append(None if i == n-1 else '')
+            # None para filas posteriores al último dato; cadena vacía si es intermedia
+            dd_list.append(None if i > last_valid else '')
             continue
 
-        # Cálculo normal de drawdown
+        # Cálculo de drawdown
         if bal > max_balance:
             max_balance = bal
             dd_list.append('')
@@ -110,6 +116,7 @@ def calcular_dd_max(df: pd.DataFrame) -> pd.DataFrame:
 
     df['DD/Max'] = dd_list
     return df
+
 
 
 
