@@ -1,12 +1,13 @@
 import pandas as pd
 from dateutil import parser
 
-# Módulo "convertir_fechas.py" con preservación de raw original para reconvertir siempre desde texto
+# Módulo "convertir_fechas.py" actualizado para regenerar siempre el raw desde texto
 
 def convertir_fechas(df: pd.DataFrame, cols, dayfirst=False, yearfirst=False) -> pd.DataFrame:
     """
     Convierte múltiples formatos de fecha en las columnas indicadas usando solo dateutil.parser.
-    Preserva una columna "Raw" original para asegurar consistencia tras interacciones.
+    Siempre recrea la columna "Raw" a partir del texto original en cada ejecución,
+    evitando que persistencias previas introduzcan errores.
 
     Parámetros:
     - df: DataFrame original.
@@ -18,12 +19,11 @@ def convertir_fechas(df: pd.DataFrame, cols, dayfirst=False, yearfirst=False) ->
     - DataFrame con las columnas convertidas a datetime64, siempre desde el texto raw.
     """
     df = df.copy()
-    # 1) Asegurar columnas raw
+
+    # 1) Recrear siempre las columnas raw a partir del valor actual (texto puro)
     for col in cols:
         raw_col = f"{col} Raw"
-        if raw_col not in df.columns:
-            # Guardar texto original para reconvertir
-            df[raw_col] = df[col].astype(str)
+        df[raw_col] = df[col].astype(str)
 
     # 2) Parsear siempre desde raw
     for col in cols:
@@ -37,6 +37,6 @@ def convertir_fechas(df: pd.DataFrame, cols, dayfirst=False, yearfirst=False) ->
             except Exception:
                 return pd.NaT
         df[col] = df[raw_col].apply(robust_parse)
-        # Asegurar dtype datetime64
         df[col] = pd.to_datetime(df[col], errors='coerce')
+
     return df
