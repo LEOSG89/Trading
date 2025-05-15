@@ -1,15 +1,44 @@
 import streamlit as st
+import time
+from s3_utils import maybe_autosave
+
+st.set_page_config(page_title="Hoja de Trading", page_icon="📈", layout="wide")
+
+# 1) Mostrar mensaje si el autosave anterior dejó algo
+if st.session_state.get("auto_save_message"):
+    st.success(st.session_state.pop("auto_save_message"))
+
+# 2) Inicializar flags solo una vez
+if "data_modified" not in st.session_state:
+    st.session_state.data_modified = False
+if "last_auto_save" not in st.session_state:
+    st.session_state.last_auto_save = time.time()
+
+# 3) Intentar el auto‐save (con el mismo código que el botón)
+
+
+# — ahora siguen tus otros imports —
 import pandas as pd
 import os, json
 import config
-# 1) Inicializa el gestor de archivos (crea carpeta e índice si no existen)
-from gestor_archivos import (
-    init_storage,
+from io import BytesIO
+
+from auto_save_s3 import schedule_auto_save
+
+from gestor_archivos_s3 import (
     list_saved_files,
     save_uploaded_file,
     load_file_df,
-    delete_saved_file
+    delete_saved_file,
+    update_file
 )
+
+# Inicializa flags en sesión
+if "data_modified" not in st.session_state:
+    st.session_state.data_modified = False
+if "last_auto_save" not in st.session_state:
+    st.session_state.last_auto_save = time.time()
+       
 from copia_tabla import copiar_datos_a_tabla
 from botones import crear_botones_trading, crear_botones_iv_rank
 from operations import agregar_operacion, procesar_deposito_retiro
@@ -50,8 +79,6 @@ from tabla_editable_eliminar_renombrar_limpiar_columnas import tabla_editable_el
 
 SELECT_FILE = 'selected_asset.json'
 
-st.set_page_config(page_title="Hoja de Trading", page_icon="📈", layout="wide")
-
 def init_session():
     if os.path.exists(config.COL_FILE):
         try:
@@ -88,32 +115,69 @@ def init_session():
             st.session_state.selected_asset = config.ASSETS[0]
 
 init_session()
+# Inicializar loaded_file para controlar la recarga desde AWS
+if "loaded_file" not in st.session_state:
+    st.session_state.loaded_file = None
+    
+if st.session_state.get("multi_uploader") is None and "ya_subido" in st.session_state:
+    del st.session_state["ya_subido"]
 if 'pintar_colores' not in st.session_state:
     st.session_state.pintar_colores = False
+
 # ———————— Gestión de múltiples archivos ————————
 with st.sidebar.expander("Archivos", expanded=True):
-    saved = list_saved_files()                # [{name,path},…]
+        # Switch para activar/desactivar autoguardado
+    st.session_state.auto_save_enabled = st.checkbox(
+        "Autoguardar en S3",
+        value=st.session_state.get("auto_save_enabled", True),
+        help="Habilita o deshabilita que las operaciones se guarden automáticamente en S3"
+    )
+    # 1) Selector de archivo
+    saved  = list_saved_files()
     nombres = [f["name"] for f in saved]
     nombres.insert(0, "↑ Subir nuevo ↑")
-
     choice = st.selectbox("Archivo activo:", nombres, key="selector_archivo")
 
+    # 2) Subir nuevo
     if choice == "↑ Subir nuevo ↑":
         up = st.file_uploader("Sube CSV/XLSX", type=["csv","xlsx"], key="multi_uploader")
         if up:
             save_uploaded_file(up)
             st.success(f"Guardado '{up.name}'. Ahora selecciónalo arriba.")
+             # Si estamos en “Subir nuevo” limpiamos el flag
+            st.session_state.loaded_file = None
+    # 3) Archivo existente
     else:
-        # Botón para eliminar el archivo seleccionado
+        # 3a) Eliminar
         if st.button("🗑️ Eliminar archivo seleccionado"):
             delete_saved_file(choice)
             st.success(f"El archivo '{choice}' ha sido eliminado.")
-            st.stop()  # Detiene la ejecución para que el selector recargue la lista
-        # Si no se elimina, lo cargamos normalmente
-        df = load_file_df(choice)
-        if not df.empty:
-            st.session_state.datos = df
+            st.stop()
 
+        # 3b) Cargar en memoria
+        if st.session_state.loaded_file != choice:
+           df = load_file_df(choice)
+           if not df.empty:
+               st.session_state.datos = df
+           st.session_state.loaded_file = choice
+
+        # 3c) Guardar cambios manual
+        if st.button("💾 Guardar cambios en S3", key="save_sidebar"):
+            buffer = BytesIO()
+            st.session_state.datos.to_csv(buffer, index=False, encoding="utf-8")
+            buffer.seek(0)
+            update_file(choice, buffer.getvalue())
+            st.success(f"Archivo '{choice}' actualizado correctamente en S3")
+
+with st.expander("Modo de entrenamiento", expanded=True):
+    if 'pintar_colores' not in st.session_state:
+        st.session_state.pintar_colores = True
+    st.session_state.pintar_colores = st.checkbox(
+        "Aplicar colores en la tabla",
+        value=st.session_state.pintar_colores
+    )
+    crear_botones_trading()
+    crear_botones_iv_rank()
 
  # ———————— Ajustes y resto del sidebar ————————           
 with st.sidebar.expander("Cargar y Ajustes", expanded=True):
@@ -163,11 +227,16 @@ with st.sidebar.expander("Cargar y Ajustes", expanded=True):
     st.session_state.datos = tabla_editable_eliminar_renombrar_limpiar_columnas(
         st.session_state.datos
     )
-
+current_layout = {'height': st.session_state.h, 'width': st.session_state.w}
+if st.session_state.get("prev_layout") != current_layout:
     with open(config.TABLE_FILE, 'w') as f:
-        json.dump({'height': st.session_state.h, 'width': st.session_state.w}, f)
+        json.dump(current_layout, f)
+    st.session_state.prev_layout = current_layout
+
+if sel != st.session_state.get("prev_selected_asset"):
     with open(SELECT_FILE, 'w') as f:
         json.dump(sel, f)
+    st.session_state.prev_selected_asset = sel
 
 df = st.session_state.datos.copy()
 df = limpiar_columnas(df)
@@ -205,18 +274,8 @@ render_tabla_capital(df)
 mostrar_sidebar_inversion(df)
 render_esperanza_matematica(df)
 
-with st.sidebar.expander("Ganancia por Contratos", expanded=True):
+with st.sidebar.expander("Ganancia por Contratos", expanded=False):
     tabla_ganancia_contratos_calculos()
-
-with st.expander("Modo de entrenamiento", expanded=False):
-    if 'pintar_colores' not in st.session_state:
-        st.session_state.pintar_colores = True
-    st.session_state.pintar_colores = st.checkbox(
-        "Aplicar colores en la tabla",
-        value=st.session_state.pintar_colores
-    )
-    crear_botones_trading()
-    crear_botones_iv_rank()
 
 if st.session_state.get('pintar_colores_disable_pending', False):
     st.session_state.pintar_colores = False
@@ -228,6 +287,7 @@ with tab_vista:
     df_vista = df.copy()
     if 'Contador' in df_vista.columns:
         df_vista = df_vista.drop(columns=['Contador'])
+        
     styled_df_vista = aplicar_color_general(df_vista)
 
     if styled_df_vista is not None:
@@ -254,7 +314,6 @@ with tab_vista:
         "Mapa de calor Tiempo": mostrar_heatmaps_dia_hora,
         "Calendario": mostrar_calendario,
     }
-
     secciones = [
         ("", "rango_col1", "rango_col2"),
         (" Secundarios", "rango_col3", "rango_col4")
@@ -322,7 +381,7 @@ with tab_edicion:
     df_ed.insert(0, 'Contador', df_ed.index)
     df_ed['Eliminar'] = False
     df_ed.drop(columns=[''], inplace=True, errors='ignore')
-
+    
     numeric_cols = ['#Cont', 'STRK Buy', 'STRK Sell', 'Deposito', 'Retiro', 'Profit']
     for col in numeric_cols:
         if col in df_ed.columns:
@@ -354,3 +413,5 @@ with tab_edicion:
     filtered = edited[edited['Eliminar'] == False]
     filtered = filtered.drop(columns=['Contador', 'Eliminar']).reset_index(drop=True)
     st.session_state.datos = filtered
+    # ← Marcamos que la data ha cambiado para el auto‐save
+    st.session_state.data_modified = True
