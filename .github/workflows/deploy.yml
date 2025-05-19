@@ -34,6 +34,5 @@ jobs:
           AWS_BUCKET_NAME:       ${{ secrets.AWS_BUCKET_NAME }}
         run: |
           # Opcional: verifica conexión a S3
-          aws s3 ls s3://$AWS_BUCKET_NAME
           # Finalmente, arranca la app
           streamlit run ui.py
