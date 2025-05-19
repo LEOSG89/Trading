@@ -1,14 +1,14 @@
-# gestor_archivos_s3.py
+import os, boto3, streamlit as st
 
-import os, streamlit as st, boto3
+AWS_KEY    = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY")
+REGION     = os.getenv("AWS_REGION")
+BUCKET     = os.getenv("AWS_BUCKET_NAME")
 
-# Primero prueba env vars; si no existen, tira de st.secrets (secrets.toml)
-AWS_KEY    = os.getenv("AWS_ACCESS_KEY_ID")     or st.secrets["AWS"]["ACCESS_KEY_ID"]
-AWS_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY") or st.secrets["AWS"]["SECRET_ACCESS_KEY"]
-REGION     = os.getenv("AWS_REGION")            or st.secrets["AWS"]["REGION"]
-BUCKET     = os.getenv("AWS_BUCKET_NAME")       or st.secrets["AWS"]["BUCKET_NAME"]
+if not all([AWS_KEY, AWS_SECRET, REGION, BUCKET]):
+    st.error("🔑 Faltan credenciales de AWS en el entorno.")
+    st.stop()
 
-# Ya no haría falta st.stop(), porque siempre tendrá un valor alguno
 session = boto3.Session(
     aws_access_key_id=AWS_KEY,
     aws_secret_access_key=AWS_SECRET,
