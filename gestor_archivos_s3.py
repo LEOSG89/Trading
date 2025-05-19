@@ -1,22 +1,14 @@
-# gestor_archivos_s3.py (modificado para GitHub Actions)
+# gestor_archivos_s3.py
 
-import os
-import boto3
-import streamlit as st  # si aún lo necesitas para UI
-import pandas as pd
-from io import BytesIO
+import os, streamlit as st, boto3
 
-# 1) Leer credenciales directamente de las env vars
-AWS_KEY    = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY")
-REGION     = os.getenv("AWS_REGION")
-BUCKET     = os.getenv("AWS_BUCKET_NAME")  # puedes también poner el nombre del bucket como secreto
+# Primero prueba env vars; si no existen, tira de st.secrets (secrets.toml)
+AWS_KEY    = os.getenv("AWS_ACCESS_KEY_ID")     or st.secrets["AWS"]["ACCESS_KEY_ID"]
+AWS_SECRET = os.getenv("AWS_SECRET_ACCESS_KEY") or st.secrets["AWS"]["SECRET_ACCESS_KEY"]
+REGION     = os.getenv("AWS_REGION")            or st.secrets["AWS"]["REGION"]
+BUCKET     = os.getenv("AWS_BUCKET_NAME")       or st.secrets["AWS"]["BUCKET_NAME"]
 
-if not all([AWS_KEY, AWS_SECRET, REGION, BUCKET]):
-    st.error("🔑 No tengo todas las credenciales de AWS en las variables de entorno.")
-    st.stop()
-
-# 2) Inicializar cliente S3 usando boto3 y las env vars
+# Ya no haría falta st.stop(), porque siempre tendrá un valor alguno
 session = boto3.Session(
     aws_access_key_id=AWS_KEY,
     aws_secret_access_key=AWS_SECRET,
@@ -24,7 +16,6 @@ session = boto3.Session(
 )
 s3 = session.client("s3")
 
-# … el resto de tus funciones list_saved_files, save_uploaded_file, etc. permanece igual …
 
 
 
